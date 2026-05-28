@@ -1,0 +1,66 @@
+# GrantGlobe Stage 2 Crawler — Python dependencies
+# Pinned to latest stable releases as of May 2026.
+# Maintenance note: refresh the User-Agent pool in settings.py every quarter
+# alongside any Scrapy / Playwright version upgrades (spec §2.5 Layer 2).
+
+# ── HTTP client (pre-flight, robotstxt_parser, rss_checker) ──────────────────
+# Used in standalone pre-flight scripts that run outside Scrapy's Twisted reactor.
+requests==2.32.3
+
+# ── Testing ───────────────────────────────────────────────────────────────────
+pytest==8.4.0
+
+# ── Core crawl framework ──────────────────────────────────────────────────────
+scrapy==2.16.0
+scrapy-playwright==0.0.46          # JS rendering via Playwright; requires
+                                   # `playwright install chromium` after pip install
+
+# ── Stealth / fingerprint evasion ─────────────────────────────────────────────
+# TODO (pre-Phase A decision): replace the placeholder below with whichever
+# library passes the bot-detection test suite (bot.sannysoft.com, creepjs,
+# pixelscan.net) under scrapy-playwright's managed browser context.
+# Evaluation order per spec §2.5 Layer 1:
+#   1. rebrowser-playwright   — patches at binary level (most robust)
+#   2. undetected-playwright  — patches at CDP level (more Scrapy-compatible)
+#   3. playwright-stealth     — JS injection fallback
+# Uncomment the chosen library here and wire it into DOWNLOADER_MIDDLEWARES
+# in settings.py once the evaluation is complete.
+# rebrowser-playwright==...
+# undetected-playwright==...
+# playwright-stealth==...
+
+# ── PDF extraction ─────────────────────────────────────────────────────────────
+PyMuPDF==1.27.2.3                  # Primary text extraction (fitz); also handles
+                                   # per-page character counts for OCR routing
+pdfplumber==0.11.9                 # Secondary pass for table-structured content
+pytesseract==0.3.13                # OCR wrapper; requires Tesseract 5.x system binary
+                                   # with eng, fra, spa, ara language packs installed
+pdf2image==1.17.0                  # Converts PDF pages to PNG for OCR;
+                                   # requires poppler system binary
+                                   # IMPORTANT: always call with batch_size <= 10
+                                   # pages to avoid OOM on large PDFs (spec §Known Limitations)
+
+# ── Language detection ────────────────────────────────────────────────────────
+# PyPI package name is lingua-language-detector; spec refers to it as lingua-py
+# (the GitHub repo name). Import as: from lingua import Language, LanguageDetectorBuilder
+lingua-language-detector==2.2.0
+
+# ── Encoding / charset detection ──────────────────────────────────────────────
+charset-normalizer==3.4.7          # Preferred over chardet; accurate on Arabic/CJK
+                                   # and used internally by requests (spec §2.2)
+
+# ── Cookie encryption ─────────────────────────────────────────────────────────
+cryptography==48.0.0               # Fernet symmetric encryption for cookie_store/
+                                   # Key loaded from COOKIE_ENCRYPTION_KEY env var
+
+# ── Feed parsing ──────────────────────────────────────────────────────────────
+feedparser==6.0.12                 # RSS/Atom feed parsing in pre-flight and per-cycle
+                                   # feed fetch (spec §2.1)
+
+# ── Scheduling ────────────────────────────────────────────────────────────────
+APScheduler==3.11.2                # Weekly (Sunday 02:00 UTC) + daily (02:00 UTC)
+                                   # + on-demand triggered schedules (spec §2.8)
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+python-dotenv==1.2.2               # Loads .env for COOKIE_ENCRYPTION_KEY,
+                                   # PROXY_USERNAME, PROXY_PASSWORD, etc.

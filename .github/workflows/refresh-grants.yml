@@ -1,0 +1,88 @@
+# GrantGlobe — Automated grant data refresh and GitHub Pages deployment
+#
+# On every run this workflow:
+#   1. Exports approved grants from the cloud PostgreSQL database to grants.json
+#   2. Deploys the entire Stage_4_Static_Searchable_Interface/ directory to
+#      GitHub Pages, so the public interface always reflects the latest data.
+#
+# No grants.json is committed back to the repository — the Pages deployment
+# is built fresh on each run directly from the live database.
+#
+# REQUIRED ONE-TIME SETUP:
+#   Repository Settings → Secrets and variables → Actions → New repository secret
+#   Name:  DATABASE_URL
+#   Value: postgresql://user:password@host/dbname   (your Neon connection string)
+#
+#   Repository Settings → Pages → Source → GitHub Actions
+#
+# SCHEDULE: runs daily at 07:00 UTC. Adjust the cron expression to suit your
+#           Stage 2 + Stage 3 pipeline schedule.
+
+name: Refresh grant data and deploy to Pages
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # daily at 07:00 UTC
+  workflow_dispatch:        # manual trigger from the Actions tab
+
+# Permissions required for GitHub Pages deployment via Actions.
+permissions:
+  contents: read    # read repository files
+  pages:    write   # deploy to Pages
+  id-token: write   # OIDC token for Pages deployment authentication
+
+# Prevent concurrent deployments — if a run is in progress, wait; don't cancel.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  export-and-deploy:
+    name: Export grants → deploy to GitHub Pages
+    runs-on: ubuntu-latest
+
+    # Links this job to the github-pages deployment environment so GitHub shows
+    # the live URL in the Actions summary.
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      # ── 1. Check out the repository ────────────────────────────────────────
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python ───────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ── 3. Install Python dependencies ─────────────────────────────────────
+      - name: Install dependencies
+        run: pip install psycopg2-binary python-dotenv
+
+      # ── 4. Export grants from the database to grants.json ──────────────────
+      #
+      # export_grants.py reads DATABASE_URL from the environment and writes
+      # Stage_4_Static_Searchable_Interface/data/grants.json.
+      # Remove --include-closed if you want to exclude Closed grants (default).
+      - name: Export grants to JSON
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        working-directory: Stage_4_Static_Searchable_Interface
+        run: python export_grants.py
+
+      # ── 5. Upload the static site as a Pages artifact ──────────────────────
+      #
+      # This packages the entire Stage_4_Static_Searchable_Interface/ directory
+      # (including the freshly generated data/grants.json) for deployment.
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: Stage_4_Static_Searchable_Interface
+
+      # ── 6. Deploy to GitHub Pages ───────────────────────────────────────────
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

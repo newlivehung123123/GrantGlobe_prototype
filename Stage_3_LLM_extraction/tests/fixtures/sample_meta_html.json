@@ -1,0 +1,9 @@
+{
+  "url_hash": "aabbccdd00000001",
+  "domain": "example.com",
+  "crawl_date": "2026-05-23",
+  "changed": true,
+  "is_pdf": false,
+  "html_path": "example.com/2026-05-23/pages/sample_page.html.gz",
+  "url": "https://example.com/grants/innovation-2026"
+}

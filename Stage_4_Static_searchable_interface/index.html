@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GrantGlobe — Find Funding</title>
+
+  <!-- Inter typeface -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Fuse.js 7.x — fuzzy-search library -->
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@7/dist/fuse.umd.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════
+       HEADER
+  ════════════════════════════════════════════════════════════ -->
+  <header class="site-header">
+    <div class="site-header__inner">
+      <div class="site-header__brand">
+        <span class="site-header__logo">GrantGlobe</span>
+      </div>
+      <p class="site-header__subtitle">Open funding intelligence</p>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════
+       MAIN CONTENT
+  ════════════════════════════════════════════════════════════ -->
+  <main class="site-main">
+
+    <!-- ── Hero / Search ──────────────────────────────────── -->
+    <section class="hero">
+      <div class="hero__inner">
+        <div class="search-wrap">
+          <input
+            id="search-input"
+            class="search-input"
+            type="search"
+            placeholder="Search grants by keyword, funder, or topic…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        <span id="result-count" class="result-count"></span>
+      </div>
+    </section>
+
+    <!-- ── Filter strip ──────────────────────────────────── -->
+    <section class="filter-strip">
+      <div class="filter-strip__inner">
+
+        <select id="filter-status" class="filter-select" aria-label="Filter by status">
+          <option value="">All Statuses</option>
+          <option value="Open">Open</option>
+          <option value="Upcoming">Upcoming</option>
+          <option value="Rolling">Rolling</option>
+          <option value="Closed">Closed</option>
+        </select>
+
+        <select id="filter-region" class="filter-select" aria-label="Filter by region">
+          <option value="">All Regions</option>
+          <option value="Sub-Saharan Africa">Sub-Saharan Africa</option>
+          <option value="Northern Africa">Northern Africa</option>
+          <option value="Western Asia">Western Asia</option>
+          <option value="Central Asia">Central Asia</option>
+          <option value="Southern Asia">Southern Asia</option>
+          <option value="Eastern Asia">Eastern Asia</option>
+          <option value="South-eastern Asia">South-eastern Asia</option>
+          <option value="Oceania">Oceania</option>
+          <option value="Latin America and the Caribbean">Latin America and the Caribbean</option>
+          <option value="Northern America">Northern America</option>
+          <option value="Europe">Europe</option>
+        </select>
+
+        <select id="filter-sector" class="filter-select" aria-label="Filter by sector">
+          <option value="">All Sectors</option>
+        </select>
+
+        <select id="filter-org-type" class="filter-select" aria-label="Filter by organisation type">
+          <option value="">All Organisation Types</option>
+        </select>
+
+        <button id="reset-filters" class="btn-reset">Clear filters</button>
+
+      </div>
+    </section>
+
+    <!-- ── Grant grid ──────────────────────────────────── -->
+    <section class="grid-section">
+      <div class="grid-section__inner">
+        <div id="grant-grid" class="grant-grid"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════════════════
+       DETAIL MODAL
+  ════════════════════════════════════════════════════════════ -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div id="modal-content" class="modal-content">
+      <button id="modal-close" class="modal-close" aria-label="Close detail panel">✕</button>
+      <!-- app.js populates the interior -->
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════
+       FOOTER
+  ════════════════════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <p>© 2026 GrantGlobe. Data refreshed periodically. Not financial or legal advice.</p>
+  </footer>
+
+  <!-- app.js loaded last, deferred -->
+  <script src="app.js" defer></script>
+
+</body>
+</html>

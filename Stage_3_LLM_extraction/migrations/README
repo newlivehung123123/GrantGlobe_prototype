@@ -1,0 +1,4 @@
+Alembic database migration environment for Stage 3 — GrantGlobe LLM Extraction Pipeline.
+
+Run `alembic upgrade head` to apply all migrations.
+Set DATABASE_URL in the environment before running.

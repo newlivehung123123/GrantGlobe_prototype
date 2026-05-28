@@ -1,0 +1,388 @@
+{
+  "adb": {
+    "canonical_name": "Asian Development Bank",
+    "ror_id": "00t9r6v54"
+  },
+  "afdb": {
+    "canonical_name": "African Development Bank",
+    "ror_id": "04hk7rq29"
+  },
+  "african development bank": {
+    "canonical_name": "African Development Bank",
+    "ror_id": "04hk7rq29"
+  },
+  "aga khan foundation": {
+    "canonical_name": "Aga Khan Foundation",
+    "ror_id": "01x4v2f30"
+  },
+  "ahrc": {
+    "canonical_name": "Arts and Humanities Research Council",
+    "ror_id": "0505wns14"
+  },
+  "akf": {
+    "canonical_name": "Aga Khan Foundation",
+    "ror_id": "01x4v2f30"
+  },
+  "arts and humanities research council": {
+    "canonical_name": "Arts and Humanities Research Council",
+    "ror_id": "0505wns14"
+  },
+  "asian development bank": {
+    "canonical_name": "Asian Development Bank",
+    "ror_id": "00t9r6v54"
+  },
+  "bill & melinda gates foundation": {
+    "canonical_name": "Bill & Melinda Gates Foundation",
+    "ror_id": "0456r8d26"
+  },
+  "bill and melinda gates foundation": {
+    "canonical_name": "Bill & Melinda Gates Foundation",
+    "ror_id": "0456r8d26"
+  },
+  "bloomberg": {
+    "canonical_name": "Bloomberg Philanthropies",
+    "ror_id": "02jzrsm59"
+  },
+  "bloomberg philanthropies": {
+    "canonical_name": "Bloomberg Philanthropies",
+    "ror_id": "02jzrsm59"
+  },
+  "bmgf": {
+    "canonical_name": "Bill & Melinda Gates Foundation",
+    "ror_id": "0456r8d26"
+  },
+  "bmz": {
+    "canonical_name": "German Federal Ministry for Economic Cooperation and Development",
+    "ror_id": "04dmktk35"
+  },
+  "bundesministerium für wirtschaftliche zusammenarbeit und entwicklung": {
+    "canonical_name": "German Federal Ministry for Economic Cooperation and Development",
+    "ror_id": "04dmktk35"
+  },
+  "children's investment fund foundation": {
+    "canonical_name": "Children's Investment Fund Foundation",
+    "ror_id": "01bkbym42"
+  },
+  "ciff": {
+    "canonical_name": "Children's Investment Fund Foundation",
+    "ror_id": "01bkbym42"
+  },
+  "comic relief": {
+    "canonical_name": "Comic Relief",
+    "ror_id": "02s5m7p81"
+  },
+  "conrad n. hilton foundation": {
+    "canonical_name": "Conrad N. Hilton Foundation",
+    "ror_id": "01t9kar74"
+  },
+  "david and lucile packard foundation": {
+    "canonical_name": "David and Lucile Packard Foundation",
+    "ror_id": "00ae8a066"
+  },
+  "department for international development": {
+    "canonical_name": "UK Foreign, Commonwealth & Development Office",
+    "ror_id": "01tvm1646"
+  },
+  "deutsche gesellschaft für internationale zusammenarbeit": {
+    "canonical_name": "Deutsche Gesellschaft für Internationale Zusammenarbeit",
+    "ror_id": "00k7s1a55"
+  },
+  "dfid": {
+    "canonical_name": "UK Foreign, Commonwealth & Development Office",
+    "ror_id": "01tvm1646"
+  },
+  "ec": {
+    "canonical_name": "European Commission",
+    "ror_id": "00k4n6c32"
+  },
+  "economic and social research council": {
+    "canonical_name": "Economic and Social Research Council",
+    "ror_id": "0394vbs39"
+  },
+  "erc": {
+    "canonical_name": "European Research Council",
+    "ror_id": "0472cxd90"
+  },
+  "esrc": {
+    "canonical_name": "Economic and Social Research Council",
+    "ror_id": "0394vbs39"
+  },
+  "eu": {
+    "canonical_name": "European Commission",
+    "ror_id": "00k4n6c32"
+  },
+  "european commission": {
+    "canonical_name": "European Commission",
+    "ror_id": "00k4n6c32"
+  },
+  "european research council": {
+    "canonical_name": "European Research Council",
+    "ror_id": "0472cxd90"
+  },
+  "european union": {
+    "canonical_name": "European Commission",
+    "ror_id": "00k4n6c32"
+  },
+  "fcdo": {
+    "canonical_name": "UK Foreign, Commonwealth & Development Office",
+    "ror_id": "01tvm1646"
+  },
+  "ford foundation": {
+    "canonical_name": "Ford Foundation",
+    "ror_id": "021nxhr62"
+  },
+  "foreign commonwealth and development office": {
+    "canonical_name": "UK Foreign, Commonwealth & Development Office",
+    "ror_id": "01tvm1646"
+  },
+  "gates foundation": {
+    "canonical_name": "Bill & Melinda Gates Foundation",
+    "ror_id": "0456r8d26"
+  },
+  "gavi": {
+    "canonical_name": "Gavi, the Vaccine Alliance",
+    "ror_id": "01xwqxs94"
+  },
+  "gavi the vaccine alliance": {
+    "canonical_name": "Gavi, the Vaccine Alliance",
+    "ror_id": "01xwqxs94"
+  },
+  "gfatm": {
+    "canonical_name": "The Global Fund to Fight AIDS, Tuberculosis and Malaria",
+    "ror_id": "0548ey454"
+  },
+  "giz": {
+    "canonical_name": "Deutsche Gesellschaft für Internationale Zusammenarbeit",
+    "ror_id": "00k7s1a55"
+  },
+  "global fund": {
+    "canonical_name": "The Global Fund to Fight AIDS, Tuberculosis and Malaria",
+    "ror_id": "0548ey454"
+  },
+  "hewlett foundation": {
+    "canonical_name": "William and Flora Hewlett Foundation",
+    "ror_id": "04nmygk68"
+  },
+  "hhmi": {
+    "canonical_name": "Howard Hughes Medical Institute",
+    "ror_id": "006wxqw41"
+  },
+  "hilton foundation": {
+    "canonical_name": "Conrad N. Hilton Foundation",
+    "ror_id": "01t9kar74"
+  },
+  "horizon 2020": {
+    "canonical_name": "European Commission",
+    "ror_id": "00k4n6c32"
+  },
+  "horizon europe": {
+    "canonical_name": "European Commission",
+    "ror_id": "00k4n6c32"
+  },
+  "howard hughes medical institute": {
+    "canonical_name": "Howard Hughes Medical Institute",
+    "ror_id": "006wxqw41"
+  },
+  "idrc": {
+    "canonical_name": "International Development Research Centre",
+    "ror_id": "02dkj9734"
+  },
+  "international development research centre": {
+    "canonical_name": "International Development Research Centre",
+    "ror_id": "02dkj9734"
+  },
+  "john d and catherine t macarthur foundation": {
+    "canonical_name": "John D. and Catherine T. MacArthur Foundation",
+    "ror_id": "0295tge55"
+  },
+  "john d. and catherine t. macarthur foundation": {
+    "canonical_name": "John D. and Catherine T. MacArthur Foundation",
+    "ror_id": "0295tge55"
+  },
+  "kellogg foundation": {
+    "canonical_name": "W.K. Kellogg Foundation",
+    "ror_id": "02rswq697"
+  },
+  "luminate": {
+    "canonical_name": "Luminate",
+    "ror_id": "04d00bz50"
+  },
+  "luminate group": {
+    "canonical_name": "Luminate",
+    "ror_id": "04d00bz50"
+  },
+  "macarthur foundation": {
+    "canonical_name": "John D. and Catherine T. MacArthur Foundation",
+    "ror_id": "0295tge55"
+  },
+  "mastercard foundation": {
+    "canonical_name": "Mastercard Foundation",
+    "ror_id": "04vm8qb73"
+  },
+  "medical research council": {
+    "canonical_name": "Medical Research Council",
+    "ror_id": "03x94j517"
+  },
+  "mrc": {
+    "canonical_name": "Medical Research Council",
+    "ror_id": "03x94j517"
+  },
+  "national institutes of health": {
+    "canonical_name": "National Institutes of Health",
+    "ror_id": "01cwqze88"
+  },
+  "national science foundation": {
+    "canonical_name": "National Science Foundation",
+    "ror_id": null,
+    "ror_id_note": "VERIFY: ROR ID was incorrectly copied from Ford Foundation (021nxhr62). Look up correct NSF ROR at ror.org/search before production use."
+  },
+  "nih": {
+    "canonical_name": "National Institutes of Health",
+    "ror_id": "01cwqze88"
+  },
+  "nnf": {
+    "canonical_name": "Novo Nordisk Foundation",
+    "ror_id": "014aem173"
+  },
+  "norad": {
+    "canonical_name": "Norwegian Agency for Development Cooperation",
+    "ror_id": "03jt39c71"
+  },
+  "norwegian agency for development cooperation": {
+    "canonical_name": "Norwegian Agency for Development Cooperation",
+    "ror_id": "03jt39c71"
+  },
+  "novo nordisk foundation": {
+    "canonical_name": "Novo Nordisk Foundation",
+    "ror_id": "014aem173"
+  },
+  "nsf": {
+    "canonical_name": "National Science Foundation",
+    "ror_id": null,
+    "ror_id_note": "VERIFY: ROR ID was incorrectly copied from Ford Foundation (021nxhr62). Look up correct NSF ROR at ror.org/search before production use."
+  },
+  "oak foundation": {
+    "canonical_name": "Oak Foundation",
+    "ror_id": "01xqgpk91"
+  },
+  "omidyar network": {
+    "canonical_name": "Omidyar Network",
+    "ror_id": "00tfkxn35"
+  },
+  "open society foundations": {
+    "canonical_name": "Open Society Foundations",
+    "ror_id": "04mhx3549"
+  },
+  "open society institute": {
+    "canonical_name": "Open Society Foundations",
+    "ror_id": "04mhx3549"
+  },
+  "osf": {
+    "canonical_name": "Open Society Foundations",
+    "ror_id": "04mhx3549"
+  },
+  "packard foundation": {
+    "canonical_name": "David and Lucile Packard Foundation",
+    "ror_id": "00ae8a066"
+  },
+  "robert wood johnson foundation": {
+    "canonical_name": "Robert Wood Johnson Foundation",
+    "ror_id": "04jnzpv65"
+  },
+  "rockefeller foundation": {
+    "canonical_name": "Rockefeller Foundation",
+    "ror_id": "03gkh6891"
+  },
+  "rwjf": {
+    "canonical_name": "Robert Wood Johnson Foundation",
+    "ror_id": "04jnzpv65"
+  },
+  "sida": {
+    "canonical_name": "Swedish International Development Cooperation Agency",
+    "ror_id": "04j4fv210"
+  },
+  "simons foundation": {
+    "canonical_name": "Simons Foundation",
+    "ror_id": "01cmst727"
+  },
+  "skoll foundation": {
+    "canonical_name": "Skoll Foundation",
+    "ror_id": "036rd4c15"
+  },
+  "swedish international development cooperation agency": {
+    "canonical_name": "Swedish International Development Cooperation Agency",
+    "ror_id": "04j4fv210"
+  },
+  "swedish research council": {
+    "canonical_name": "Swedish Research Council",
+    "ror_id": "02k85bd12"
+  },
+  "the global fund": {
+    "canonical_name": "The Global Fund to Fight AIDS, Tuberculosis and Malaria",
+    "ror_id": "0548ey454"
+  },
+  "uk research and innovation": {
+    "canonical_name": "UK Research and Innovation",
+    "ror_id": "001aqnf71"
+  },
+  "ukri": {
+    "canonical_name": "UK Research and Innovation",
+    "ror_id": "001aqnf71"
+  },
+  "undp": {
+    "canonical_name": "United Nations Development Programme",
+    "ror_id": "072k7v387"
+  },
+  "united nations development programme": {
+    "canonical_name": "United Nations Development Programme",
+    "ror_id": "072k7v387"
+  },
+  "united states agency for international development": {
+    "canonical_name": "US Agency for International Development",
+    "ror_id": "02k87m682"
+  },
+  "us agency for international development": {
+    "canonical_name": "US Agency for International Development",
+    "ror_id": "02k87m682"
+  },
+  "usaid": {
+    "canonical_name": "US Agency for International Development",
+    "ror_id": "02k87m682"
+  },
+  "vaccine alliance": {
+    "canonical_name": "Gavi, the Vaccine Alliance",
+    "ror_id": "01xwqxs94"
+  },
+  "vetenskapsrådet": {
+    "canonical_name": "Swedish Research Council",
+    "ror_id": "02k85bd12"
+  },
+  "w.k. kellogg foundation": {
+    "canonical_name": "W.K. Kellogg Foundation",
+    "ror_id": "02rswq697"
+  },
+  "wellcome": {
+    "canonical_name": "Wellcome Trust",
+    "ror_id": "029chgv08"
+  },
+  "wellcome trust": {
+    "canonical_name": "Wellcome Trust",
+    "ror_id": "029chgv08"
+  },
+  "william and flora hewlett foundation": {
+    "canonical_name": "William and Flora Hewlett Foundation",
+    "ror_id": "04nmygk68"
+  },
+  "wk kellogg foundation": {
+    "canonical_name": "W.K. Kellogg Foundation",
+    "ror_id": "02rswq697"
+  },
+  "world bank": {
+    "canonical_name": "World Bank",
+    "ror_id": "00anrbn29"
+  },
+  "world bank group": {
+    "canonical_name": "World Bank",
+    "ror_id": "00anrbn29"
+  }
+}

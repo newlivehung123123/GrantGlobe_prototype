@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.log
+review_queue_*.csv
+.pytest_cache/
+*.pyc
