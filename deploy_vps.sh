@@ -20,7 +20,7 @@ set -euo pipefail
 REPO_URL="https://github.com/newlivehung123123/GrantGlobe_prototype.git"
 APP_DIR="/opt/grantglobe"
 APP_USER="grantglobe"
-PYTHON="python3.11"
+PYTHON="python3.13"
 
 echo "==> [1/9] System update"
 apt-get update -y
@@ -29,8 +29,8 @@ apt-get upgrade -y
 echo "==> [2/9] Install system packages"
 apt-get install -y \
     git \
-    python3.11 \
-    python3.11-venv \
+    python3.13 \
+    python3.13-venv \
     python3-pip \
     tesseract-ocr \
     tesseract-ocr-eng \
@@ -44,7 +44,7 @@ apt-get install -y \
     libxkbcommon0 \
     libxdamage1 \
     libgbm1 \
-    libasound2 \
+    libasound2t64 \
     libpangocairo-1.0-0 \
     libgtk-3-0
 
@@ -64,7 +64,7 @@ chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 echo "==> [5/9] Install Stage 2 Python dependencies"
 sudo -u "$APP_USER" bash <<'EOF'
     cd /opt/grantglobe/Stage_2_crawler
-    python3.11 -m venv .venv
+    python3.13 -m venv .venv
     .venv/bin/pip install --upgrade pip
     .venv/bin/pip install -r requirements.txt
     .venv/bin/playwright install chromium --with-deps
@@ -73,7 +73,7 @@ EOF
 echo "==> [6/9] Install Stage 3 Python dependencies"
 sudo -u "$APP_USER" bash <<'EOF'
     cd /opt/grantglobe/Stage_3_LLM_extraction
-    python3.11 -m venv .venv
+    python3.13 -m venv .venv
     .venv/bin/pip install --upgrade pip
     .venv/bin/pip install -r requirements.txt
 EOF
