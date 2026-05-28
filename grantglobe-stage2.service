@@ -1,0 +1,35 @@
+[Unit]
+Description=GrantGlobe Stage 2 — Web Crawler Scheduler
+Documentation=https://github.com/newlivehung123123/GrantGlobe_prototype
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=grantglobe
+Group=grantglobe
+WorkingDirectory=/opt/grantglobe/Stage_2_crawler
+EnvironmentFile=/opt/grantglobe/Stage_2_crawler/.env
+
+# Playwright requires a writable home directory for its browser cache
+Environment=HOME=/home/grantglobe
+
+ExecStart=/opt/grantglobe/Stage_2_crawler/.venv/bin/python \
+    -m grantglobe_crawler.scheduler.crawl_scheduler
+
+# Restart automatically if the process crashes
+Restart=on-failure
+RestartSec=30s
+
+# Give the process up to 8 hours to complete a crawl cycle before
+# systemd considers it hung (weekly crawl across all domains can be long)
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Logging: journald captures stdout/stderr
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=grantglobe-stage2
+
+[Install]
+WantedBy=multi-user.target

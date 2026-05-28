@@ -1,0 +1,33 @@
+[Unit]
+Description=GrantGlobe Stage 3 — LLM Extraction Scheduler
+Documentation=https://github.com/newlivehung123123/GrantGlobe_prototype
+After=network-online.target grantglobe-stage2.service
+Wants=network-online.target
+# Stage 3 does not depend on Stage 2 being running — it uses the sentinel
+# file mechanism, so both services start independently. Stage 2 is listed
+# in After= only to ensure it starts first if both are started simultaneously.
+
+[Service]
+Type=simple
+User=grantglobe
+Group=grantglobe
+WorkingDirectory=/opt/grantglobe/Stage_3_LLM_extraction
+EnvironmentFile=/opt/grantglobe/Stage_3_LLM_extraction/.env
+
+ExecStart=/opt/grantglobe/Stage_3_LLM_extraction/.venv/bin/python \
+    -m stage3.scheduler
+
+# Restart automatically if the process crashes
+Restart=on-failure
+RestartSec=30s
+
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# Logging: journald captures stdout/stderr
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=grantglobe-stage3
+
+[Install]
+WantedBy=multi-user.target
