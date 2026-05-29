@@ -322,8 +322,24 @@ DOWNLOAD_HANDLERS: dict[str, str] = {
 
 PLAYWRIGHT_BROWSER_TYPE: str = "chromium"
 
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: str | None = os.getenv(
+    "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH"
+)
+"""
+Override the Chromium binary used by scrapy-playwright.
+On Ubuntu 26.04 the snap Chromium is more reliable than the playwright-bundled
+binary; set PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/snap/bin/chromium in .env.
+If unset, scrapy-playwright uses its bundled chromium_headless_shell binary.
+Spec ref: §2.2 Core framework — Playwright browser configuration.
+"""
+
 PLAYWRIGHT_LAUNCH_OPTIONS: dict = {
     "headless": True,
+    # --no-sandbox is required when running as a system user (non-root uid
+    # without a user namespace) on hardened kernels (Ubuntu 26.04 default).
+    # --disable-setuid-sandbox prevents the setuid sandbox helper from being
+    # invoked, which fails in environments without the helper binary.
+    "args": ["--no-sandbox", "--disable-setuid-sandbox"],
     # TODO: add stealth library launch args here once the pre-Phase A library
     # evaluation is complete (spec §2.5 Layer 1).  For rebrowser-playwright,
     # this may be replaced by a custom executable path; for undetected-playwright
