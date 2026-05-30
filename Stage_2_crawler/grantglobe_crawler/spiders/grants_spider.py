@@ -118,6 +118,18 @@ class GrantsSpider(scrapy.Spider):
     # Seed request generation — spec §2.2 Start requests
     # ------------------------------------------------------------------
 
+    async def start(self):
+        """
+        Scrapy 2.9+ entry point called by StartSpiderMiddleware.
+
+        The base Spider.start() iterates self.start_urls and does NOT call
+        start_requests() in Scrapy 2.12+.  This override restores the
+        expected behaviour by delegating to start_requests() so that the
+        CSV-based seed logic runs correctly.
+        """
+        for req in self.start_requests():
+            yield req
+
     def start_requests(self):
         """
         Read the seed CSV, load per-domain manifests, and yield one initial
