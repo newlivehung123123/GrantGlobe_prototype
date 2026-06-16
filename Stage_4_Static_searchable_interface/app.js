@@ -118,11 +118,28 @@ function populateMetadata(metadata, grantCount) {
 
 // ── populateDynamicFilters ──────────────────────────────────────────────────
 function populateDynamicFilters(grants) {
-  // Collect unique regions from both applicant_base_regions and geographic_focus_regions
+  // Helper: append a sentinel "Not specified" option if any records have no value
+  function maybeAddUnspecified(el, hasNone) {
+    if (!hasNone) return;
+    const sep = document.createElement('option');
+    sep.disabled = true;
+    sep.textContent = '──────────';
+    el.appendChild(sep);
+    const opt = document.createElement('option');
+    opt.value = '__unspecified__';
+    opt.textContent = 'Not specified';
+    el.appendChild(opt);
+  }
+
+  // Regions
   const regions = new Set();
+  let hasNoRegion = false;
   grants.forEach(g => {
-    (g.applicant_base_regions   || []).forEach(r => { if (r) regions.add(r); });
-    (g.geographic_focus_regions || []).forEach(r => { if (r) regions.add(r); });
+    const ab = g.applicant_base_regions   || [];
+    const gf = g.geographic_focus_regions || [];
+    ab.forEach(r => { if (r) regions.add(r); });
+    gf.forEach(r => { if (r) regions.add(r); });
+    if (!ab.length && !gf.length) hasNoRegion = true;
   });
   const regionEl = document.getElementById('filter-region');
   [...regions].sort().forEach(r => {
@@ -131,10 +148,16 @@ function populateDynamicFilters(grants) {
     opt.textContent = r;
     regionEl.appendChild(opt);
   });
+  maybeAddUnspecified(regionEl, hasNoRegion);
 
-  // Collect unique sectors
+  // Sectors
   const sectors = new Set();
-  grants.forEach(g => (g.thematic_sectors || []).forEach(s => { if (s) sectors.add(s); }));
+  let hasNoSector = false;
+  grants.forEach(g => {
+    const ts = g.thematic_sectors || [];
+    ts.forEach(s => { if (s) sectors.add(s); });
+    if (!ts.length) hasNoSector = true;
+  });
   const sectorEl = document.getElementById('filter-sector');
   [...sectors].sort().forEach(s => {
     const opt = document.createElement('option');
@@ -142,10 +165,16 @@ function populateDynamicFilters(grants) {
     opt.textContent = s;
     sectorEl.appendChild(opt);
   });
+  maybeAddUnspecified(sectorEl, hasNoSector);
 
-  // Collect unique organisation types
+  // Organisation types
   const orgTypes = new Set();
-  grants.forEach(g => (g.organisation_types || []).forEach(t => { if (t) orgTypes.add(t); }));
+  let hasNoOrgType = false;
+  grants.forEach(g => {
+    const ot = g.organisation_types || [];
+    ot.forEach(t => { if (t) orgTypes.add(t); });
+    if (!ot.length) hasNoOrgType = true;
+  });
   const orgEl = document.getElementById('filter-org-type');
   [...orgTypes].sort().forEach(t => {
     const opt = document.createElement('option');
@@ -153,6 +182,12 @@ function populateDynamicFilters(grants) {
     opt.textContent = t;
     orgEl.appendChild(opt);
   });
+  maybeAddUnspecified(orgEl, hasNoOrgType);
+
+  // Status — add "Not specified" if any record has no current_status
+  const knownStatuses = new Set(['Open', 'Upcoming', 'Rolling', 'Closed']);
+  const hasNoStatus = grants.some(g => !g.current_status || !knownStatuses.has(g.current_status));
+  if (hasNoStatus) maybeAddUnspecified(document.getElementById('filter-status'), true);
 }
 
 // ── Formatting helpers ──────────────────────────────────────────────────────
@@ -408,11 +443,37 @@ function applySearchAndFilters() {
   const orgType = document.getElementById('filter-org-type').value;
 
   // Step 2 — hard filters (exact-match; skipped when the select is at "All …")
+  // '__unspecified__' sentinel matches records with no value in that field.
+  const knownStatuses = new Set(['Open', 'Upcoming', 'Rolling', 'Closed']);
   const hardFiltered = state.allGrants.filter(g => {
-    if (status  !== '' && g.current_status !== status)                             return false;
-    if (region  !== '' && !(g.applicant_base_regions || []).includes(region) && !(g.geographic_focus_regions || []).includes(region)) return false;
-    if (sector  !== '' && !(g.thematic_sectors          || []).includes(sector))  return false;
-    if (orgType !== '' && !(g.organisation_types        || []).includes(orgType)) return false;
+    // Status
+    if (status === '__unspecified__') {
+      if (g.current_status && knownStatuses.has(g.current_status)) return false;
+    } else if (status !== '') {
+      if (g.current_status !== status) return false;
+    }
+    // Region
+    const ab = g.applicant_base_regions   || [];
+    const gf = g.geographic_focus_regions || [];
+    if (region === '__unspecified__') {
+      if (ab.length || gf.length) return false;
+    } else if (region !== '') {
+      if (!ab.includes(region) && !gf.includes(region)) return false;
+    }
+    // Sector
+    const ts = g.thematic_sectors || [];
+    if (sector === '__unspecified__') {
+      if (ts.length) return false;
+    } else if (sector !== '') {
+      if (!ts.includes(sector)) return false;
+    }
+    // Org type
+    const ot = g.organisation_types || [];
+    if (orgType === '__unspecified__') {
+      if (ot.length) return false;
+    } else if (orgType !== '') {
+      if (!ot.includes(orgType)) return false;
+    }
     return true;
   });
 
