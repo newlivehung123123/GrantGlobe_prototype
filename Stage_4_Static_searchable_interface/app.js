@@ -118,6 +118,20 @@ function populateMetadata(metadata, grantCount) {
 
 // ── populateDynamicFilters ──────────────────────────────────────────────────
 function populateDynamicFilters(grants) {
+  // Collect unique regions from both applicant_base_regions and geographic_focus_regions
+  const regions = new Set();
+  grants.forEach(g => {
+    (g.applicant_base_regions   || []).forEach(r => { if (r) regions.add(r); });
+    (g.geographic_focus_regions || []).forEach(r => { if (r) regions.add(r); });
+  });
+  const regionEl = document.getElementById('filter-region');
+  [...regions].sort().forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = r;
+    regionEl.appendChild(opt);
+  });
+
   // Collect unique sectors
   const sectors = new Set();
   grants.forEach(g => (g.thematic_sectors || []).forEach(s => { if (s) sectors.add(s); }));
@@ -396,7 +410,7 @@ function applySearchAndFilters() {
   // Step 2 — hard filters (exact-match; skipped when the select is at "All …")
   const hardFiltered = state.allGrants.filter(g => {
     if (status  !== '' && g.current_status !== status)                             return false;
-    if (region  !== '' && !(g.geographic_focus_regions  || []).includes(region))  return false;
+    if (region  !== '' && !(g.applicant_base_regions || []).includes(region) && !(g.geographic_focus_regions || []).includes(region)) return false;
     if (sector  !== '' && !(g.thematic_sectors          || []).includes(sector))  return false;
     if (orgType !== '' && !(g.organisation_types        || []).includes(orgType)) return false;
     return true;
