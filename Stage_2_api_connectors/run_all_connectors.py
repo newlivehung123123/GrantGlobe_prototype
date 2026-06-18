@@ -50,6 +50,7 @@ CONNECTORS = [
     # ── Asia Pacific ─────────────────────────────────────────────────────────
     ("JSPS Japan",             CONNECTORS_DIR / "jsps_japan.py"),
     ("Australia Grants",       CONNECTORS_DIR / "australia.py"),
+    ("ARC Australia",          CONNECTORS_DIR / "arc_australia.py"),
     # ── Other ────────────────────────────────────────────────────────────────
     ("NordForsk",              CONNECTORS_DIR / "nordic_nordforsk.py"),
     ("NWO Netherlands",        CONNECTORS_DIR / "nwo.py"),
