@@ -83,6 +83,9 @@ SECTOR_KEYWORDS = {
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _strip_tags(html: str) -> str:
+    html = re.sub(r'<!--.*?-->', ' ', html, flags=re.DOTALL)  # strip comments first
+    html = re.sub(r'-->', ' ', html)    # stray comment closers
+    html = re.sub(r'<!--', ' ', html)   # stray comment openers
     html = re.sub(r'<[^>]+>', ' ', html)
     html = re.sub(r'&nbsp;', ' ', html)
     html = re.sub(r'&amp;', '&', html)
@@ -167,7 +170,7 @@ def _parse_login_page(html: str) -> list[dict]:
         href_m = re.search(r"href='([^']+vwOpprtntyDtls\.do[^']*)'", cells[0])
         if not href_m:
             continue
-        url   = href_m.group(1).strip()
+        url   = href_m.group(1).strip().replace('&amp;', '&')
         title = _strip_tags(cells[0]).strip()
         if not title or len(title) < 5:
             continue
