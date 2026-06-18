@@ -152,42 +152,33 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
             continue
         seen_urls.add(url)
 
-        # The RCN anchor includes metadata after the title (e.g. "Target groups: … 27 May").
-        # Truncate at the first known metadata label or a bare month+day pattern.
-        _TITLE_CUT = re.compile(
-            r"\s+(?:Target groups?|Application deadline|Deadline|Open for|Closes?|"
-            r"Frist|Søknadsfrist)\s*[:–].*$"
-            r"|\s+\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
-            r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
-            r"(?:\s+\d{4})?$",
-            re.IGNORECASE,
-        )
-        title = _TITLE_CUT.sub("", title_raw).strip()
-        if not title:
-            title = title_raw.split("\n")[0].strip()   # fallback: first line only
-
         pos   = m.start()
         block = html_text[max(0, pos - 300): pos + 2000]
 
-        # Try to extract deadline from the link inner text first (often "27 May 2026")
+        # ---- Deadline: search the FULL link text for any date (leading or trailing) ----
         deadline_raw = None
         deadline_iso = None
-        # Date embedded in link text after truncation point
         _DATE_IN_LINK = re.compile(
             r"(\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
             r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
-            r"(?:\s+\d{4})?)",
+            r"(?:\s+\d{4})?|\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{2}\.\d{4})",
             re.IGNORECASE,
         )
-        dm_link = _DATE_IN_LINK.search(title_raw[len(title):])
-        if dm_link:
-            raw = dm_link.group(1).strip()
-            # Append current year if year is missing
+        for dm in _DATE_IN_LINK.finditer(title_raw):
+            raw = dm.group(1).strip()
             if not re.search(r"\d{4}", raw):
                 raw = f"{raw} {datetime.date.today().year}"
-            deadline_raw = raw
-            deadline_iso = _parse_date(raw)
+            parsed = _parse_date(raw)
+            if parsed:
+                try:
+                    if datetime.date.fromisoformat(parsed) >= datetime.date.today():
+                        deadline_raw = raw
+                        deadline_iso = parsed
+                        break
+                except ValueError:
+                    pass
 
+        # Fall back to surrounding block for deadline
         if not deadline_iso:
             date_pat = re.compile(
                 r"(?:deadline|closing|closes?|frist)[^<]*?"
@@ -198,6 +189,28 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
             if dm:
                 deadline_raw = dm.group(1).replace(".", " ").strip()
                 deadline_iso = _parse_date(deadline_raw)
+
+        # ---- Title: strip trailing metadata labels AND leading dates ----
+        # Trailing: "Target groups: …", "Application deadline: …", etc.
+        _TRAILING_META = re.compile(
+            r"\s+(?:Target groups?|Application deadline|Deadline|Open for|Closes?|"
+            r"Frist|Søknadsfrist)\s*[:–].*$"
+            r"|\s+\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+            r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+            r"(?:\s+\d{4})?$",
+            re.IGNORECASE,
+        )
+        title = _TRAILING_META.sub("", title_raw).strip()
+        # Leading: "27 May, " or "27 May 2026 " before the actual title
+        _LEADING_DATE = re.compile(
+            r"^\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+            r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+            r"(?:\s+\d{4})?\s*[,\s]\s*",
+            re.IGNORECASE,
+        )
+        title = _LEADING_DATE.sub("", title).strip()
+        if not title:
+            title = title_raw.split("\n")[0].strip()
 
         desc_m = re.search(r"<p[^>]*>(.*?)</p>", block, re.DOTALL | re.IGNORECASE)
         description = _strip_tags(desc_m.group(1)).strip()[:400] if desc_m else None
