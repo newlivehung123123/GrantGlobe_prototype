@@ -137,23 +137,40 @@ WHERE
     -- deadline (Rolling, TBC) have NULL application_deadline and are kept.
     AND (g.application_deadline IS NULL OR g.application_deadline >= CURRENT_DATE)
 
-    -- Quality filter: exclude records from listing pages where no specific
-    -- grant URL was captured.  A record is treated as a listing-page extract
-    -- when application_portal_url is NULL and its source_url was shared by
-    -- more than one approved/auto-approved grant (i.e. the crawler hit a
-    -- page that contained multiple opportunities and the LLM didn't extract
-    -- individual links for them).
+    -- Quality filter: exclude records that have no specific grant URL.
+    -- A URL is considered "specific" only if it is unique among approved records
+    -- (i.e. not a generic listing page or portal homepage shared by many grants).
+    --
+    -- Logic:
+    --   1. If application_portal_url is set AND unique → keep (specific grant page)
+    --   2. If application_portal_url is NULL AND source_url is unique → keep
+    --      (source page was a dedicated single-grant page)
+    --   3. Everything else → drop (generic portal homepage or listing page)
     AND (
-        g.application_portal_url IS NOT NULL
+        (
+            g.application_portal_url IS NOT NULL
+            AND (
+                SELECT COUNT(*)
+                FROM grants g2
+                WHERE g2.application_portal_url = g.application_portal_url
+                  AND (
+                      g2.review_status = 'approved'
+                      OR (g2.requires_review = false AND g2.review_status = 'pending')
+                  )
+            ) = 1
+        )
         OR (
-            SELECT COUNT(*)
-            FROM grants g2
-            WHERE g2.source_url = g.source_url
-              AND (
-                  g2.review_status = 'approved'
-                  OR (g2.requires_review = false AND g2.review_status = 'pending')
-              )
-        ) = 1
+            g.application_portal_url IS NULL
+            AND (
+                SELECT COUNT(*)
+                FROM grants g2
+                WHERE g2.source_url = g.source_url
+                  AND (
+                      g2.review_status = 'approved'
+                      OR (g2.requires_review = false AND g2.review_status = 'pending')
+                  )
+            ) = 1
+        )
     )
 
 ORDER BY
