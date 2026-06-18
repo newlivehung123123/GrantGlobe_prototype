@@ -472,6 +472,22 @@ def export(include_closed: bool, output_path: Path) -> tuple[int, str]:
     )
     grants = [_serialise_row(dict(row)) for row in rows]
 
+    # ── Deduplicate by normalised title + deadline ──────────────────────
+    # Keeps the first occurrence (rows are already sorted by status priority
+    # then deadline ASC, so the "best" record comes first).
+    seen_keys: set[tuple] = set()
+    deduped: list[dict] = []
+    for g in grants:
+        title_norm = (g.get("grant_title") or "").strip().lower()
+        deadline = g.get("application_deadline")  # ISO string or None
+        key = (title_norm, deadline)
+        if key not in seen_keys:
+            seen_keys.add(key)
+            deduped.append(g)
+    if len(deduped) < len(grants):
+        print(f"  Deduplication: removed {len(grants) - len(deduped)} duplicate(s)")
+    grants = deduped
+
     # ── URL validation — drop records with broken links ─────────────────
     print(f"  Validating URLs for {len(grants)} records…")
     grants = _filter_live_urls(grants)
