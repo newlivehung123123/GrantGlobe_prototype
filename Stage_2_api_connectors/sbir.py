@@ -35,7 +35,9 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SBIR_API_URL = "https://api.sbir.gov/public/api/solicitations"
+# SBIR.gov open solicitations search — public JSON endpoint
+# docs: https://www.sbir.gov/sites/default/files/SBIR_STTR_API.pdf
+SBIR_API_URL = "https://www.sbir.gov/sbirsearch/solicit/all/"
 
 AGENCY_SECTORS: dict[str, list[str]] = {
     "DOD":  ["Defence & Security", "Technology & Innovation"],
@@ -136,9 +138,10 @@ def _fetch_sbir_solicitations() -> list[dict]:
             resp = session.get(
                 SBIR_API_URL,
                 params={
-                    "status": "open",
+                    "f[]": "pi_open_solicitations",   # filter: open solicitations only
                     "rows": rows,
                     "start": start,
+                    "output": "json",
                 },
                 timeout=30,
             )

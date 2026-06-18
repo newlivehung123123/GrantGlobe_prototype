@@ -272,21 +272,37 @@ def _fetch_aus_opportunities() -> list[dict]:
 
 
 def _map_opportunity(opp: dict) -> dict | None:
-    title = opp.get("title", "").strip()
-    url   = opp.get("url", "").strip()
-    if not title or not url:
+    raw_title   = opp.get("title", "").strip()
+    url         = opp.get("url", "").strip()
+    if not url:
         return None
 
     opp_id       = opp.get("opp_id") or url
     deadline_iso = opp.get("deadline_iso")
     funding_max  = opp.get("funding_max")
+    description  = opp.get("description")
+
+    # grants.gov.au link text is the grant reference code (e.g. "GO8474").
+    # The first <p> after the link contains the actual grant title — stored in description.
+    if re.match(r"^GO\d+$", raw_title) and description and len(description) > 5:
+        title = description          # real title
+        description = None           # no separate description available from listing
+        grant_id = raw_title         # keep reference code
+    else:
+        title = raw_title
+        grant_id = raw_title
+
+    if not title:
+        return None
+
+    funder = opp.get("agency") or "Australian Government"
 
     return {
         "grant_title":              title,
-        "funder_name":              opp.get("agency", "Australian Government"),
+        "funder_name":              funder,
         "source_url":               url,
         "application_portal_url":   url,
-        "description":              opp.get("description"),
+        "description":              description,
         "application_deadline":     deadline_iso,
         "application_deadline_raw": opp.get("deadline_raw"),
         "grant_opening_date":       None,
