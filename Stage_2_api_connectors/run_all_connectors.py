@@ -44,7 +44,8 @@ CONNECTORS = [
     # ── North America ────────────────────────────────────────────────────────
     ("USDA NIFA",              CONNECTORS_DIR / "usda_nifa.py"),
     ("NSERC Canada",           CONNECTORS_DIR / "canada_nserc.py"),
-    # ── Pacific ──────────────────────────────────────────────────────────────
+    # ── Asia Pacific ─────────────────────────────────────────────────────────
+    ("JSPS Japan",             CONNECTORS_DIR / "jsps_japan.py"),
     ("Australia Grants",       CONNECTORS_DIR / "australia.py"),
     # ── Other ────────────────────────────────────────────────────────────────
     ("NordForsk",              CONNECTORS_DIR / "nordic_nordforsk.py"),
