@@ -28,6 +28,9 @@ import json
 import os
 import sys
 import uuid
+import urllib.request
+import urllib.error
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import psycopg2
@@ -278,6 +281,80 @@ def _fix_acronyms(text: str | None) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# URL validation
+# ---------------------------------------------------------------------------
+
+_SKIP_VALIDATION_DOMAINS = {
+    # Sites that block automated HEAD requests but are known-good
+    "researchprofessional.com",
+    "thelancet.com",
+}
+
+_REQUEST_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; GrantGlobe-LinkChecker/1.0; "
+        "+https://github.com/newlivehung123123/GrantGlobe_prototype)"
+    )
+}
+
+
+def _check_url(url: str, timeout: int = 8) -> bool:
+    """Return True if the URL resolves (HTTP 2xx or 3xx), False on 4xx/5xx/error."""
+    if not url:
+        return True  # no URL → nothing to validate, keep record
+
+    from urllib.parse import urlparse
+    domain = urlparse(url).netloc.lower().lstrip("www.")
+    if any(domain.endswith(skip) for skip in _SKIP_VALIDATION_DOMAINS):
+        return True
+
+    try:
+        req = urllib.request.Request(url, method="HEAD", headers=_REQUEST_HEADERS)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status < 400
+    except urllib.error.HTTPError as e:
+        # 405 Method Not Allowed — server rejected HEAD, try GET
+        if e.code == 405:
+            try:
+                req = urllib.request.Request(url, headers=_REQUEST_HEADERS)
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    return resp.status < 400
+            except Exception:
+                return False
+        return e.code < 400  # 3xx redirects raise HTTPError sometimes
+    except Exception:
+        return False  # connection error / timeout — drop to be safe
+
+
+def _filter_live_urls(grants: list[dict], max_workers: int = 20) -> list[dict]:
+    """Remove grants whose primary URL returns a 4xx/5xx response.
+
+    Checks application_portal_url first; falls back to source_url.
+    Runs concurrently to keep total time under ~60 s for 300+ records.
+    """
+    def _check(grant: dict) -> tuple[dict, bool]:
+        url = grant.get("application_portal_url") or grant.get("source_url")
+        return grant, _check_url(url)
+
+    live: list[dict] = []
+    dropped = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(_check, g): g for g in grants}
+        for future in as_completed(futures):
+            grant, ok = future.result()
+            if ok:
+                live.append(grant)
+            else:
+                dropped += 1
+
+    print(f"  URL validation: {len(live)} live, {dropped} dropped (broken links)")
+    # Restore original sort order (futures complete out of order)
+    id_order = {g["id"]: i for i, g in enumerate(grants)}
+    live.sort(key=lambda g: id_order.get(g["id"], 9999))
+    return live
+
+
+# ---------------------------------------------------------------------------
 # Serialisation helpers
 # ---------------------------------------------------------------------------
 
@@ -368,6 +445,10 @@ def export(include_closed: bool, output_path: Path) -> tuple[int, str]:
         timespec="seconds"
     )
     grants = [_serialise_row(dict(row)) for row in rows]
+
+    # ── URL validation — drop records with broken links ─────────────────
+    print(f"  Validating URLs for {len(grants)} records…")
+    grants = _filter_live_urls(grants)
 
     payload: dict = {
         "metadata": {
