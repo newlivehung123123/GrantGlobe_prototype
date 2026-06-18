@@ -104,12 +104,30 @@ CRITICAL RULES — read carefully before extracting:
 13. For application_portal_url: set this to the direct URL of the INDIVIDUAL grant
     opportunity page — not the page you are currently reading, unless that page is itself
     dedicated to one single grant.
-    If the page is a listing or index (i.e. it contains multiple opportunities), you MUST
-    extract the specific URL for each individual opportunity from any hyperlinks visible in
-    the source text, and set application_portal_url to that URL.
-    If no individual URL is available for a listed grant, do NOT extract that grant at all —
-    omit it from the output entirely. It is better to return fewer high-quality records than
-    to return records that cannot link to the specific opportunity.\
+
+    LISTING PAGE DETECTION: if the source URL contains ?page=, &page=, ?pg=, /projects?,
+    or any other pagination parameter, OR if the page title/content describes multiple
+    separate grants/fellowships/calls, you are on a LISTING PAGE.
+
+    On a listing page you MUST:
+    a) Find the hyperlink for each individual grant within the page HTML/text.
+    b) Set application_portal_url to that individual link — a URL that goes directly
+       to THAT grant's own dedicated page.
+    c) NEVER set application_portal_url to the listing page URL you are currently reading.
+
+    Example (WRONG — do not do this):
+      source URL: https://www.oii.ox.ac.uk/research/projects/?projects&page=2
+      application_portal_url: https://www.oii.ox.ac.uk/research/projects/?projects&page=2
+      ← WRONG: this points back to the listing page, not the individual grant page.
+
+    Example (CORRECT):
+      source URL: https://www.oii.ox.ac.uk/research/projects/?projects&page=2
+      application_portal_url: https://www.oii.ox.ac.uk/research/projects/us-china-ai-governance-phd-fellowship/
+      ← CORRECT: this links directly to the individual grant's own page.
+
+    If no individual URL is visible in the page text for a particular grant, do NOT
+    extract that grant at all — omit it entirely. Fewer high-quality records is always
+    better than more records with listing-page URLs.\
 """
 
 # ---------------------------------------------------------------------------

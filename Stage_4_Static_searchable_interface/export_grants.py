@@ -278,6 +278,10 @@ _ACRONYM_FIXES: list[tuple[str, str]] = [
     (" Eu",         " EU"),
     (" Uk",         " UK"),
     (" Usa",        " USA"),
+    # Two-letter country codes preceding a hyphen (e.g. "Us-China" → "US-China")
+    ("Us-",         "US-"),
+    ("Uk-",         "UK-"),
+    ("Eu-",         "EU-"),
 ]
 
 # Compile as whole-word patterns where safe; use simple replace for multi-word
@@ -318,6 +322,15 @@ _BLOCKED_URL_PATTERNS_RAW: list[str] = [
     r'rea\.ec\.europa\.eu/news/',
     # REA reporting pages — grant reporting, not open calls
     r'rea\.ec\.europa\.eu.*grants-reporting',
+    # Generic: paginated listing pages (page=2+, pg=2+) are always listings,
+    # never a specific grant page.
+    r'[?&]page=[2-9]',
+    r'[?&]page=1\d',
+    r'[?&]pg=[2-9]',
+    r'[?&]pg=1\d',
+    # Faceted/combined query params that produce listing URLs (e.g. OII ?projects&page=)
+    r'[?&]projects&',
+    r'[?&]projects$',
 ]
 
 _BLOCKED_COMPILED: list[_re.Pattern] = [

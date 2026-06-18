@@ -68,6 +68,26 @@ logger = logging.getLogger(__name__)
 
 _PREFLIGHT_UA = "GrantGlobe-Crawler/1.0"
 
+# ---------------------------------------------------------------------------
+# Listing-page detector — URLs that are clearly index/pagination pages and
+# should never be sent to Stage 3 for grant extraction.
+# The spider still crawls these pages and follows their links; it just does
+# not yield a GrantItem so the LLM is never asked to extract from them.
+# ---------------------------------------------------------------------------
+_LISTING_URL_RE: list[re.Pattern] = [
+    re.compile(r'[?&]page=[2-9]'),       # paginated listing page 2+
+    re.compile(r'[?&]page=1\d'),         # paginated listing page 10+
+    re.compile(r'[?&]pg=[2-9]'),
+    re.compile(r'[?&]pg=1\d'),
+    re.compile(r'[?&]projects[&$]'),     # faceted project listing (e.g. OII)
+    re.compile(r'tx_solr'),              # TYPO3/Solr faceted search (already in link filter)
+]
+
+
+def _is_listing_page_url(url: str) -> bool:
+    """Return True if *url* is a listing/pagination page rather than a specific grant page."""
+    return any(p.search(url) for p in _LISTING_URL_RE)
+
 
 class GrantsSpider(scrapy.Spider):
     """GrantGlobe Stage 2 main spider."""
@@ -471,7 +491,14 @@ class GrantsSpider(scrapy.Spider):
         if response.meta.get("is_pdf") or self._passes_link_filter(canonical, depth=depth):
             self._domain_grant_relevant_pages[domain] += 1
 
-        yield item
+        # Do not send paginated listing/index pages to Stage 3 for extraction.
+        # These pages contain multiple grants listed without individual URLs,
+        # causing the LLM to extract grant records that link back to the listing
+        # page rather than to the specific grant page.
+        # We still crawl them (to follow links to specific grant pages) but we
+        # do not yield the item so the LLM never sees them as extraction targets.
+        if not _is_listing_page_url(response.url):
+            yield item
 
         self._domain_pages_crawled[domain] += 1
 
