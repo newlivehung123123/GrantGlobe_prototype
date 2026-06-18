@@ -45,6 +45,8 @@ CONNECTORS = [
     ("USDA NIFA",              CONNECTORS_DIR / "usda_nifa.py"),
     ("NSERC Canada",           CONNECTORS_DIR / "canada_nserc.py"),
     ("CIHR Canada",            CONNECTORS_DIR / "cihr_canada.py"),
+    # ── International / Multilateral ─────────────────────────────────────────
+    ("HFSP",                   CONNECTORS_DIR / "hfsp.py"),
     # ── Asia Pacific ─────────────────────────────────────────────────────────
     ("JSPS Japan",             CONNECTORS_DIR / "jsps_japan.py"),
     ("Australia Grants",       CONNECTORS_DIR / "australia.py"),
