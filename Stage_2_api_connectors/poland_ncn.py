@@ -338,7 +338,12 @@ def _fetch_ncn_calls(fetch_details: bool = True) -> list[dict]:
         if desc:
             comp["description"] = desc
         if deadline_body:
-            comp["deadline_iso"] = deadline_body  # prefer body deadline over sidebar date
+            # Only override sidebar deadline if body deadline is in the future
+            try:
+                if datetime.date.fromisoformat(deadline_body) >= datetime.date.today():
+                    comp["deadline_iso"] = deadline_body
+            except ValueError:
+                pass
         print(
             f"  NCN detail: '{comp['title']}' — deadline={comp.get('deadline_iso')} "
             f"desc={'yes' if desc else 'no'}"

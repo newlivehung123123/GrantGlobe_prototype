@@ -33,18 +33,24 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-DFG_RSS_URL = "https://www.dfg.de/service/rss/de/323556/feed.rss"
-DFG_BASE    = "https://www.dfg.de"
+DFG_RSS_URL     = "https://www.dfg.de/service/rss/de/323556/feed.rss"
+DFG_BASE        = "https://www.dfg.de"
 
-# Keep items whose URL contains one of these substrings (English IFR articles)
-URL_FILTERS = ["/en/", "/english/"]
-
-# Keywords that identify an item as a call for proposals (case-insensitive)
+# Keywords that identify an item as a call for proposals (case-insensitive).
+# Includes German terms because the DFG IFR feed is bilingual/German-heavy.
 CALL_KEYWORDS = [
+    # English
     "call", "proposal", "funding programme", "funding program",
     "deadline", "submit", "application", "programme announcement",
     "tender", "invitation", "solicitation", "open competition",
-    "förder", "ausschreibung",  # German equivalents (fallback)
+    # German
+    "förder", "ausschreibung", "antragstellung", "einreichung",
+    "bewerbung", "programm", "forschungsförderung",
+]
+
+# Items to skip even if they hit a keyword (pure news, not calls)
+EXCLUDE_KEYWORDS = [
+    "press release", "annual report", "interview", "obituary",
 ]
 
 TOPIC_SECTOR_MAP: dict[str, list[str]] = {
@@ -195,6 +201,8 @@ def _extract_deadline_from_text(text: str) -> str | None:
 def _is_call(title: str, description: str) -> bool:
     """Return True if the item looks like a call for proposals."""
     combined = (title + " " + description).lower()
+    if any(kw in combined for kw in EXCLUDE_KEYWORDS):
+        return False
     return any(kw in combined for kw in CALL_KEYWORDS)
 
 
@@ -310,19 +318,12 @@ def _fetch_dfg_calls() -> list[dict]:
         if not title or not link:
             continue
 
-        # Filter to English-language articles
-        is_english = any(f in link for f in URL_FILTERS)
-        if not is_english:
-            # Also accept items with no language prefix that mention English keywords
-            has_english_content = any(
-                kw in (title + description).lower()
-                for kw in ["call for", "funding", "deadline", "proposal", "programme"]
-            )
-            if not has_english_content:
-                continue
-
-        # Filter to call-related items
+        # The DFG IFR feed is mixed German/English — no language URL filter.
+        # Every item in this feed is a funding call or closely related notice.
+        # We filter only on call-relevance keywords (EN + DE) and exclude
+        # obvious non-call items (press releases, etc.).
         if not _is_call(title, description):
+            print(f"  DFG skip (no call keyword): {title[:80]}")
             continue
 
         # Parse dates
