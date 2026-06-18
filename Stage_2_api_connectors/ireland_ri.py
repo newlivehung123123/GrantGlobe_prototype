@@ -325,16 +325,28 @@ def _parse_html_fallback(page_html: str) -> list[dict]:
 
         # Description: text between h3 and the link
         pre_link = post_ctx[: link_m.start()]
-        description = _strip_html(pre_link).strip()[:500]
+        description = _strip_html(pre_link).strip()
+        _lt = description.find('<')
+        if _lt >= 0:
+            description = description[:_lt].strip()
+        description = description[:500]
 
         # Deadline: look for "Deadline" label followed by date text
         deadline_raw = ""
+        _post_clean = re.sub(r'<!--.*?-->', '', post_ctx[link_m.end():])
+        _post_text = re.sub(r'<[^>]+>', ' ', _post_clean)
         dl_m = re.search(
-            r"[Dd]eadline[^:]*:\s*([^\n<]{5,120})",
-            post_ctx[link_m.end() :],
+            r'[Dd]eadline\s*:\s*(\S[^\n]{4,119})',
+            _post_text,
+            re.IGNORECASE,
         )
         if dl_m:
-            deadline_raw = _strip_html(dl_m.group(1)).strip()
+            _dr = _strip_html(dl_m.group(1)).strip()
+            _lt = _dr.find('<')
+            if _lt >= 0: _dr = _dr[:_lt].strip()
+            for _sep in [' Programme Type', ' Career Stage', ' Award Amount', ' Duration']:
+                if _sep in _dr: _dr = _dr[:_dr.index(_sep)].strip(); break
+            deadline_raw = _dr
 
         # Award amount: look for currency symbol patterns
         amount_raw = ""
