@@ -126,11 +126,11 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
     opps: list[dict] = []
 
     # Individual call pages: /en/call-for-proposals/2026/{slug}/
-    # e.g. /en/call-for-proposals/2026/research-to-improve-societal-security-and-emergency-preparedness/
+    # or international joint calls: /en/call-for-proposals/International-joint-calls/{slug}/
     link_pat = re.compile(
         r'<a\s[^>]*href="'
-        r'(/en/call-for-proposals/\d{4}/[^"?#]+|'
-        r'https://www\.forskningsradet\.no/en/call-for-proposals/\d{4}/[^"?#]+)"'
+        r'(/en/call-for-proposals/(?:\d{4}|International-joint-calls)/[^"?#]+|'
+        r'https://www\.forskningsradet\.no/en/call-for-proposals/(?:\d{4}|International-joint-calls)/[^"?#]+)"'
         r'[^>]*>(.*?)</a>',
         re.DOTALL | re.IGNORECASE,
     )
@@ -153,7 +153,7 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
         seen_urls.add(url)
 
         pos   = m.start()
-        block = html_text[max(0, pos - 300): pos + 2000]
+        block = html_text[max(0, pos - 800): pos + 2000]
 
         # ---- Deadline: search the FULL link text for any date (leading or trailing) ----
         deadline_raw = None
@@ -178,17 +178,25 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
                 except ValueError:
                     pass
 
-        # Fall back to surrounding block for deadline
+        # Fall back to surrounding block for deadline.
+        # RCN sometimes concatenates month+year ("9 Sep2026") — handle both spaced and compact.
         if not deadline_iso:
             date_pat = re.compile(
                 r"(?:deadline|closing|closes?|frist)[^<]*?"
-                r"(\d{1,2}\.?\s*\w+\s+\d{4}|\d{1,2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})",
+                r"(\d{1,2}\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+                r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+                r"\s*\d{4}|\d{1,2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})",
                 re.IGNORECASE,
             )
             dm = date_pat.search(block)
             if dm:
-                deadline_raw = dm.group(1).replace(".", " ").strip()
+                # Normalise: ensure spaces between components
+                raw = re.sub(r"([a-zA-Z])(\d{4})", r"\1 \2", dm.group(1)).replace(".", " ").strip()
+                deadline_raw = raw
                 deadline_iso = _parse_date(deadline_raw)
+
+        # Check whether this call is labelled "open-ended" in the surrounding block
+        is_open_ended = bool(re.search(r"open[- ]?ended", block, re.IGNORECASE))
 
         # ---- Title: strip trailing metadata labels AND leading dates ----
         # Trailing: "Target groups: …", "Application deadline: …", etc.
@@ -226,6 +234,7 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
             "description":      description,
             "thematic_sectors": _infer_sectors((title or "") + " " + (description or "")),
             "opp_id":           opp_id,
+            "is_open_ended":    is_open_ended,
         })
 
     return opps
@@ -287,6 +296,13 @@ def _map_opportunity(opp: dict) -> dict | None:
 
     opp_id       = opp.get("opp_id") or url
     deadline_iso = opp.get("deadline_iso")
+    is_open_ended = opp.get("is_open_ended", False)
+
+    # Status: Rolling if explicitly open-ended and no concrete deadline; else Open
+    if is_open_ended and not deadline_iso:
+        status = "Rolling"
+    else:
+        status = "Open"
 
     return {
         "grant_title":              title,
@@ -297,7 +313,7 @@ def _map_opportunity(opp: dict) -> dict | None:
         "application_deadline":     deadline_iso,
         "application_deadline_raw": opp.get("deadline_raw"),
         "grant_opening_date":       None,
-        "current_status":           "Open",
+        "current_status":           status,
         "source_language":          "en",
         "funding_amount_min":       None,
         "funding_amount_max":       None,
