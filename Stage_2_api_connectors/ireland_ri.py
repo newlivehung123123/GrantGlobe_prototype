@@ -403,16 +403,17 @@ def _enrich_from_html(items: list[dict], page_html: str) -> list[dict]:
         search_from = second_pos if second_pos >= 0 else first_pos
         ctx = page_html[search_from: search_from + 2000]
 
-        # Deadline: find "Deadline" then scan 400 chars for a calendar date
+        # Deadline — strip React <!-- --> comments so regex can cross them
         if not item.get("deadline_raw"):
-            for dl_m in re.finditer(r"\bDeadline\b", ctx, re.IGNORECASE):
-                date_window = ctx[dl_m.start(): dl_m.start() + 400]
-                # Try "Deadline: <text>" first (works when label+value share text)
+            ctx_clean = re.sub(r'<!--.*?-->', '', ctx)
+            for dl_m in re.finditer(r"\bDeadline\b", ctx_clean, re.IGNORECASE):
+                date_window = ctx_clean[dl_m.start(): dl_m.start() + 400]
+                # Stage 1: "Deadline: <text>" (works once comments are stripped)
                 colon_m = re.search(r"Deadline\s*:\s*([^\n<]{5,120})", date_window, re.IGNORECASE)
                 if colon_m:
                     item["deadline_raw"] = _strip_html(colon_m.group(1)).strip()
                     break
-                # Fallback: just grab the next calendar date after "Deadline"
+                # Stage 2: next calendar date pattern after "Deadline"
                 date_m = _DATE_PAT.search(date_window[len("Deadline"):])
                 if date_m:
                     item["deadline_raw"] = date_m.group(0)
