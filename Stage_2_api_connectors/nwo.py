@@ -30,7 +30,7 @@ import requests
 # ---------------------------------------------------------------------------
 
 NWO_BASE      = "https://www.nwo.nl"
-NWO_LIST_URL  = "https://www.nwo.nl/en/calls-for-proposals"
+NWO_LIST_URL  = "https://www.nwo.nl/en/calls"
 MAX_PAGES     = 20
 
 DOMAIN_SECTOR_MAP: dict[str, list[str]] = {
@@ -126,9 +126,9 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
     """
     opps: list[dict] = []
 
-    # Find all call detail links  e.g. /en/calls-for-proposals/open-competition-m-2026
+    # Individual NWO call pages are at /en/calls/{slug} e.g. /en/calls/open-mind-2026
     link_pat = re.compile(
-        r'<a\s[^>]*href="(/en/calls[^"]+|https://www\.nwo\.nl/en/calls[^"]+)"[^>]*>'
+        r'<a\s[^>]*href="(/en/calls/[^"?#]+|https://www\.nwo\.nl/en/calls/[^"?#]+)"[^>]*>'
         r'(.*?)</a>',
         re.DOTALL | re.IGNORECASE,
     )
@@ -140,8 +140,11 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
 
         if not title_raw or len(title_raw) < 5:
             continue
-        # Skip navigation/footer links
-        if any(skip in href_raw for skip in ["/news/", "/about/", "/contact", "/funding-results"]):
+        # Skip navigation/news/non-call links
+        if any(skip in href_raw for skip in ["/news/", "/about/", "/contact", "/funding-results", "/themes/"]):
+            continue
+        # Skip the bare listing page itself
+        if href_raw.rstrip("/") in ("/en/calls", "https://www.nwo.nl/en/calls"):
             continue
 
         url = href_raw if href_raw.startswith("http") else f"{NWO_BASE}{href_raw}"
@@ -211,13 +214,13 @@ def _fetch_nwo_opportunities() -> list[dict]:
             break
 
         if page_num == 1:
-            # Diagnostic: show a snippet to confirm parsing targets
-            snippet_start = html_text.find("/en/calls")
+            snippet_start = html_text.find("/en/calls/")
             if snippet_start > 0:
-                print(f"  NWO: first /en/calls href found at char {snippet_start} ✓")
+                print(f"  NWO: first /en/calls/ href found at char {snippet_start} ✓")
             else:
-                print("  NWO WARNING: no /en/calls links found on page 1 — check URL/parsing")
-                print(f"  NWO page 1 snippet (chars 5000-6000): {html_text[5000:6000]}")
+                print("  NWO WARNING: no /en/calls/ links found on page 1 — site may be JS-rendered")
+                print(f"  NWO page 1 length: {len(html_text)} chars")
+                print(f"  NWO page 1 snippet (chars 2000-3500): {html_text[2000:3500]}")
 
         page_opps = _parse_calls_from_html(html_text)
         if not page_opps:

@@ -30,7 +30,7 @@ import requests
 # ---------------------------------------------------------------------------
 
 RCN_BASE     = "https://www.forskningsradet.no"
-RCN_LIST_URL = "https://www.forskningsradet.no/en/apply-for-funding/find-funding/open-calls/"
+RCN_LIST_URL = "https://www.forskningsradet.no/en/call-for-proposals/"
 MAX_PAGES    = 15
 
 DOMAIN_SECTOR_MAP: dict[str, list[str]] = {
@@ -125,11 +125,12 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
     """
     opps: list[dict] = []
 
-    # Pattern: links to individual call pages under /en/apply-for-funding/ or /en/funding/
+    # Individual call pages: /en/call-for-proposals/2026/{slug}/
+    # e.g. /en/call-for-proposals/2026/research-to-improve-societal-security-and-emergency-preparedness/
     link_pat = re.compile(
         r'<a\s[^>]*href="'
-        r'(/en/(?:apply-for-funding|funding)/[^"]+|'
-        r'https://www\.forskningsradet\.no/en/(?:apply-for-funding|funding)/[^"]+)"'
+        r'(/en/call-for-proposals/\d{4}/[^"?#]+|'
+        r'https://www\.forskningsradet\.no/en/call-for-proposals/\d{4}/[^"?#]+)"'
         r'[^>]*>(.*?)</a>',
         re.DOTALL | re.IGNORECASE,
     )
@@ -141,11 +142,8 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
 
         if not title_raw or len(title_raw) < 5:
             continue
-        # Skip pagination/navigation anchors
-        if any(skip in href_raw for skip in ["/news/", "/about/", "?", "#", "/contact"]):
-            continue
-        # Require the href to look like a specific call (has more than 2 path segments)
-        if href_raw.count("/") < 4:
+        # Skip navigation/news links
+        if any(skip in href_raw for skip in ["/news/", "/about/", "/contact"]):
             continue
 
         url = href_raw if href_raw.startswith("http") else f"{RCN_BASE}{href_raw}"
@@ -210,12 +208,13 @@ def _fetch_rcn_opportunities() -> list[dict]:
             break
 
         if page_num == 1:
-            idx = html_text.find("/en/apply-for-funding/")
+            idx = html_text.find("/en/call-for-proposals/20")
             if idx > 0:
                 print(f"  RCN: first call link found at char {idx} ✓")
             else:
-                print("  RCN WARNING: no /en/apply-for-funding/ links on page 1")
-                print(f"  RCN page 1 snippet (chars 3000-4500): {html_text[3000:4500]}")
+                print("  RCN WARNING: no /en/call-for-proposals/20xx/ links on page 1 — may be JS-rendered")
+                print(f"  RCN page 1 length: {len(html_text)} chars")
+                print(f"  RCN page 1 snippet (chars 2000-3500): {html_text[2000:3500]}")
 
         page_opps = _parse_calls_from_html(html_text)
         if not page_opps:
