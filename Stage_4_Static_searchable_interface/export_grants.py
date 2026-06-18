@@ -174,6 +174,10 @@ WHERE
     )
 
 ORDER BY
+    -- API-sourced records always beat LLM-crawled records for the same grant.
+    -- When deduplication iterates this list, the first record for a
+    -- (title, deadline) pair wins — so api_* must come first.
+    CASE WHEN g.domain LIKE 'api_%' THEN 0 ELSE 1 END,
     CASE g.current_status
         WHEN 'Open'     THEN 1
         WHEN 'Upcoming' THEN 2
