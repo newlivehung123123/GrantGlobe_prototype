@@ -166,6 +166,118 @@ ORDER BY
 
 
 # ---------------------------------------------------------------------------
+# Acronym restoration
+# ---------------------------------------------------------------------------
+# The LLM often title-cases acronyms (e.g. "Msca" instead of "MSCA",
+# "Dsti-Nrf" instead of "DSTI-NRF").  This list maps the incorrectly
+# title-cased form to the correct all-caps form and is applied to
+# grant_title and funder_name at export time.
+
+import re as _re
+
+_ACRONYM_FIXES: list[tuple[str, str]] = [
+    # Funding bodies / programmes
+    ("Msca",        "MSCA"),
+    ("Twas",        "TWAS"),
+    ("Unesco",      "UNESCO"),
+    ("Unicef",      "UNICEF"),
+    ("Undp",        "UNDP"),
+    ("Unfccc",      "UNFCCC"),
+    ("Unep",        "UNEP"),
+    ("Nsf",         "NSF"),
+    ("Nih",         "NIH"),
+    ("Nasa",        "NASA"),
+    ("Noaa",        "NOAA"),
+    ("Dsti",        "DSTI"),
+    ("Dsi",         "DSI"),
+    ("Nrf",         "NRF"),
+    ("Ahrc",        "AHRC"),
+    ("Esrc",        "ESRC"),
+    ("Epsrc",       "EPSRC"),
+    ("Bbsrc",       "BBSRC"),
+    ("Nerc",        "NERC"),
+    ("Stfc",        "STFC"),
+    ("Erc",         "ERC"),
+    ("Eic",         "EIC"),
+    ("Anr",         "ANR"),
+    ("Nwo",         "NWO"),
+    ("Dfg",         "DFG"),
+    ("Fct",         "FCT"),
+    ("Snsf",        "SNSF"),
+    ("Fwo",         "FWO"),
+    ("Bmbf",        "BMBF"),
+    ("Daad",        "DAAD"),
+    ("Cnrs",        "CNRS"),
+    ("Ukri",        "UKRI"),
+    ("Rcuk",        "RCUK"),
+    ("Oecd",        "OECD"),
+    ("Nato",        "NATO"),
+    ("Asean",       "ASEAN"),
+    ("Who",         "WHO"),
+    ("Fao",         "FAO"),
+    ("Wfp",         "WFP"),
+    ("Iaea",        "IAEA"),
+    ("Ifc",         "IFC"),
+    ("Idb",         "IDB"),
+    ("Adb",         "ADB"),
+    ("Afdb",        "AfDB"),
+    ("Ebrd",        "EBRD"),
+    ("Eib",         "EIB"),
+    ("Giz",         "GIZ"),
+    ("Usaid",       "USAID"),
+    ("Fcdo",        "FCDO"),
+    ("Dfid",        "DFID"),
+    ("Norad",       "NORAD"),
+    ("Sida",        "Sida"),   # Sida is the official capitalisation
+    ("Jica",        "JICA"),
+    ("Koica",       "KOICA"),
+    ("Apctt",       "APCTT"),
+    ("Twas-Cui",    "TWAS-CUI"),
+    # Domain / field abbreviations
+    ("Ai",          "AI"),
+    ("Ml",          "ML"),
+    ("Nlp",         "NLP"),
+    ("Ict",         "ICT"),
+    ("Iot",         "IoT"),
+    ("Stem",        "STEM"),
+    ("Sbir",        "SBIR"),
+    ("Sttr",        "STTR"),
+    ("Sme",         "SME"),
+    ("Ngo",         "NGO"),
+    ("Ingo",        "INGO"),
+    ("Cso",         "CSO"),
+    ("Phd",         "PhD"),
+    ("Msc",         "MSc"),
+    ("Bsc",         "BSc"),
+    ("Mba",         "MBA"),
+    ("Mphil",       "MPhil"),
+    # Country / region abbreviations used as standalone words in titles
+    ("Eu ",         "EU "),
+    ("Uk ",         "UK "),
+    ("Usa ",        "USA "),
+    (" Eu",         " EU"),
+    (" Uk",         " UK"),
+    (" Usa",        " USA"),
+]
+
+# Compile as whole-word patterns where safe; use simple replace for multi-word
+_ACRONYM_PATTERNS: list[tuple[_re.Pattern, str]] = [
+    (_re.compile(r'\b' + _re.escape(wrong) + r'\b'), correct)
+    for wrong, correct in _ACRONYM_FIXES
+    if ' ' not in wrong
+]
+
+
+def _fix_acronyms(text: str | None) -> str | None:
+    """Restore incorrectly title-cased acronyms in a free-text field."""
+    if not text:
+        return text
+    for pattern, correct in _ACRONYM_PATTERNS:
+        text = pattern.sub(correct, text)
+    return text
+
+
+# ---------------------------------------------------------------------------
 # Serialisation helpers
 # ---------------------------------------------------------------------------
 
@@ -203,7 +315,11 @@ def _serialise_value(key: str, value) -> object:
 
 def _serialise_row(row: dict) -> dict:
     """Serialise a full database row dict to a JSON-safe dict."""
-    return {key: _serialise_value(key, val) for key, val in row.items()}
+    result = {key: _serialise_value(key, val) for key, val in row.items()}
+    # Restore incorrectly title-cased acronyms in free-text title fields.
+    result["grant_title"]  = _fix_acronyms(result.get("grant_title"))
+    result["funder_name"]  = _fix_acronyms(result.get("funder_name"))
+    return result
 
 
 # ---------------------------------------------------------------------------
