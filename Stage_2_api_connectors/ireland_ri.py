@@ -262,7 +262,14 @@ def _parse_next_data(page_html: str) -> list[dict]:
             desc_raw = (
                 desc_raw.get("text") or desc_raw.get("value") or ""
             )
-        desc = _strip_html(str(desc_raw)).strip()[:500]
+        desc = _strip_html(str(desc_raw)).strip()
+        # __NEXT_DATA__ sometimes embeds description as HTML truncated mid-tag
+        # (e.g. `...life. <a class="btn ...` with no closing >).
+        # _strip_html strips complete tags; cut off any orphaned < that remains.
+        lt_pos = desc.find("<")
+        if lt_pos >= 0:
+            desc = desc[:lt_pos].strip()
+        desc = desc[:500]
 
         items.append({
             "title":        title,
@@ -358,31 +365,58 @@ def _parse_html_fallback(page_html: str) -> list[dict]:
 
 def _enrich_from_html(items: list[dict], page_html: str) -> list[dict]:
     """
-    After __NEXT_DATA__ parsing, deadline/amount metadata is often absent from
-    the JSON (stored only in the rendered HTML as DT/DD or labelled divs).
-    Anchor on each item's href slug and search the following ~2000 chars.
+    After __NEXT_DATA__ parsing, deadline/amount metadata lives only in the
+    rendered HTML (DT/DD or labelled divs), not in the JSON blob.
+
+    Strategy:
+      - Each item's slug href appears TWICE: once in the h3 title link, once
+        in the "Learn more" button. The deadline appears AFTER the button.
+      - Search for the second occurrence of the slug href to start the context.
+      - For deadline: find any "Deadline" text then look for a date pattern
+        within the next 400 chars (avoids Tailwind colon-containing classes).
     """
+    _DATE_PAT = re.compile(
+        r"\d{1,2}(?:st|nd|rd|th)?\s+"
+        r"(?:January|February|March|April|May|June|July|August|September|"
+        r"October|November|December)\s+20\d{2}",
+        re.IGNORECASE,
+    )
+
     for item in items:
         url = item.get("url", "")
         if not url:
             continue
-        slug = url.replace(RI_BASE, "")           # e.g. /funding/clean-energy-transition-partnership/
-        # Find the slug as an href value — more specific than a bare text search
-        anchor = f'href="{slug}'
-        pos = page_html.find(anchor)
-        if pos < 0:
-            # Try without trailing slash
-            anchor = f'href="{slug.rstrip("/")}'
-            pos = page_html.find(anchor)
-        if pos < 0:
-            continue
-        ctx = page_html[pos: pos + 2500]
+        slug = url.replace(RI_BASE, "")   # /funding/clean-energy-transition-partnership/
 
-        # Deadline
+        # Find first occurrence (h3 title link)
+        first_pos = page_html.find(f'href="{slug}')
+        if first_pos < 0:
+            first_pos = page_html.find(f'href="{slug.rstrip("/")}')
+        if first_pos < 0:
+            continue
+
+        # Find second occurrence (Learn more button) — deadline comes after this
+        second_pos = page_html.find(f'href="{slug}', first_pos + 1)
+        if second_pos < 0:
+            second_pos = page_html.find(f'href="{slug.rstrip("/")}', first_pos + 1)
+
+        search_from = second_pos if second_pos >= 0 else first_pos
+        ctx = page_html[search_from: search_from + 2000]
+
+        # Deadline: find "Deadline" then scan 400 chars for a calendar date
         if not item.get("deadline_raw"):
-            dl_m = re.search(r"[Dd]eadline[^:]*:\s*([^<\n]{5,120})", ctx)
-            if dl_m:
-                item["deadline_raw"] = _strip_html(dl_m.group(1)).strip()
+            for dl_m in re.finditer(r"\bDeadline\b", ctx, re.IGNORECASE):
+                date_window = ctx[dl_m.start(): dl_m.start() + 400]
+                # Try "Deadline: <text>" first (works when label+value share text)
+                colon_m = re.search(r"Deadline\s*:\s*([^\n<]{5,120})", date_window, re.IGNORECASE)
+                if colon_m:
+                    item["deadline_raw"] = _strip_html(colon_m.group(1)).strip()
+                    break
+                # Fallback: just grab the next calendar date after "Deadline"
+                date_m = _DATE_PAT.search(date_window[len("Deadline"):])
+                if date_m:
+                    item["deadline_raw"] = date_m.group(0)
+                    break
 
         # Award amount
         if not item.get("amount_raw"):
