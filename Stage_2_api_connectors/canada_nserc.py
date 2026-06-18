@@ -132,94 +132,104 @@ def _fetch_page(session: requests.Session, url: str,
         return None
 
 
+def _fetch_nserc_json(session: requests.Session) -> list[dict]:
+    """
+    Try the Drupal JSON API for structured grant data.
+    Returns a list of raw opportunity dicts, or [] if the API is unavailable.
+    """
+    try:
+        # Drupal 10 JSON:API endpoint
+        resp = session.get(
+            f"{NSERC_BASE}/en/funding/funding-opportunity",
+            params={"_format": "json", "field_fo_status[open]": "open"},
+            timeout=20,
+        )
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+        if not isinstance(data, list) or not data:
+            return []
+        print(f"  NSERC JSON API: {len(data)} records returned ✓")
+        opps = []
+        for item in data:
+            title = (item.get("title") or item.get("name") or "").strip()
+            if not title:
+                continue
+            path  = item.get("path") or item.get("url") or ""
+            url   = f"{NSERC_BASE}{path}" if path.startswith("/") else path
+            if not url:
+                url = f"{NSERC_BASE}/en/funding/funding-opportunity/{_title_to_slug(title)}"
+            desc_field = item.get("field_fo_description") or item.get("body") or {}
+            description = None
+            if isinstance(desc_field, dict):
+                description = _strip_tags(desc_field.get("value") or "").strip()[:400] or None
+            elif isinstance(desc_field, str):
+                description = _strip_tags(desc_field).strip()[:400] or None
+            opps.append({
+                "title":       title,
+                "url":         url,
+                "deadline_iso": None,
+                "deadline_raw": None,
+                "description": description,
+            })
+        return opps
+    except Exception as e:
+        print(f"  NSERC JSON API failed: {e}")
+        return []
+
+
+# Blacklist for non-grant headings on the NSERC listing page
+_HEADING_BLACKLIST = re.compile(
+    r"^(contact|newsletter|find funding|displaying|date modified|"
+    r"email|search terms|include archive|\d+ results? available)$",
+    re.IGNORECASE,
+)
+
+
 def _parse_opportunities_from_html(html_text: str) -> list[dict]:
     """
     Extract NSERC funding opportunities from the listing HTML.
 
-    The Drupal listing uses article cards with anchor-linked titles.
-    Falls back to constructing URLs from title slugs if no anchor found.
+    NSERC's Drupal 10 listing does not use anchor-linked h3 headings for grants —
+    the titles appear as plain text nodes (potentially in div/span elements).
+    This parser searches for the "Open" status badges and works backwards to
+    find the associated grant title in the preceding text.
+
+    Approach: locate every occurrence of ">Open<" in the HTML (the status badge),
+    then search backwards up to 2000 chars for text that reads like a grant title.
     """
     opps: list[dict] = []
-
-    # Primary pattern: anchor links to individual opportunity pages
-    link_pat = re.compile(
-        r'<a\s[^>]*href="(/en/funding/funding-opportunity/[^"?#]+)"[^>]*>'
-        r'(.*?)</a>',
-        re.DOTALL | re.IGNORECASE,
-    )
-
     seen_urls: set[str] = set()
-    found_via_links = False
 
-    for m in link_pat.finditer(html_text):
-        href_raw  = m.group(1).strip()
-        title_raw = _strip_tags(m.group(2)).strip()
+    # Pattern: any element containing exactly "Open" as text (the status field)
+    open_badge_pat = re.compile(r">Open\s*<", re.IGNORECASE)
 
-        if not title_raw or len(title_raw) < 5:
+    for bm in open_badge_pat.finditer(html_text):
+        badge_pos = bm.start()
+        # Look backward for a grant title — grab the 2000-char block before the badge
+        pre = html_text[max(0, badge_pos - 2000): badge_pos]
+        # Strip tags to get plain text
+        pre_text = _strip_tags(pre)
+        # Split into non-empty lines
+        lines = [l.strip() for l in pre_text.split("\n") if l.strip()]
+        if not lines:
             continue
-        # Skip navigation / filter links
-        if any(skip in href_raw for skip in [
-            "field_fo_status", "field_audience", "field_inst_type",
-            "field_program", "/page/",
-        ]):
-            continue
+        # The grant title is the LAST substantive non-metadata line before "Open"
+        title_raw = ""
+        for line in reversed(lines):
+            # Skip short lines, noise, and known non-title patterns
+            if len(line) < 8:
+                continue
+            if _HEADING_BLACKLIST.search(line):
+                continue
+            if re.match(r"^\d+\s+results", line, re.IGNORECASE):
+                continue
+            if re.match(r"^date modified", line, re.IGNORECASE):
+                continue
+            title_raw = line
+            break
 
-        url = f"{NSERC_BASE}{href_raw}"
-        if url in seen_urls:
-            continue
-        seen_urls.add(url)
-        found_via_links = True
-
-        pos   = m.start()
-        block = html_text[max(0, pos - 200): pos + 2000]
-
-        # Deadline: look for explicit date patterns near this card
-        deadline_iso = None
-        deadline_raw = None
-        date_pat = re.compile(
-            r"(?:deadline|closing|due|closes?|apply by)[^<]{0,60}?"
-            r"(\d{4}-\d{2}-\d{2}|\d{1,2}\s+\w+\s+\d{4}|\w+\s+\d{1,2},?\s+\d{4})",
-            re.IGNORECASE,
-        )
-        dm = date_pat.search(block)
-        if dm:
-            deadline_raw = dm.group(1).strip()
-            deadline_iso = _parse_date(deadline_raw)
-
-        desc_m = re.search(r"<p[^>]*>(.*?)</p>", block, re.DOTALL | re.IGNORECASE)
-        description = _strip_tags(desc_m.group(1)).strip()[:400] if desc_m else None
-
-        opps.append({
-            "title":       title_raw,
-            "url":         url,
-            "deadline_iso": deadline_iso,
-            "deadline_raw": deadline_raw,
-            "description": description,
-        })
-
-    if found_via_links:
-        return opps
-
-    # ---------------------------------------------------------------------------
-    # Fallback: parse headings + "Open" status text and construct URLs from slugs
-    # (used when Drupal renders titles without anchor links)
-    # ---------------------------------------------------------------------------
-    print("  NSERC: no anchor links found — using heading-based fallback parser")
-
-    # Match <h2> or <h3> headings followed by "Open" status
-    heading_pat = re.compile(
-        r"<h[23][^>]*>\s*(.*?)\s*</h[23]>",
-        re.DOTALL | re.IGNORECASE,
-    )
-    for m in heading_pat.finditer(html_text):
-        title_raw = _strip_tags(m.group(1)).strip()
-        if not title_raw or len(title_raw) < 5:
-            continue
-
-        # Only keep "Open" opportunities (check the 500-char block after the heading)
-        pos   = m.start()
-        block = html_text[pos: pos + 1000]
-        if "open" not in block[:200].lower():
+        if not title_raw or len(title_raw) < 8:
             continue
 
         slug = _title_to_slug(title_raw)
@@ -230,26 +240,16 @@ def _parse_opportunities_from_html(html_text: str) -> list[dict]:
             continue
         seen_urls.add(url)
 
-        deadline_iso = None
-        deadline_raw = None
-        date_pat = re.compile(
-            r"(?:deadline|closing|due|closes?|apply by)[^<]{0,60}?"
-            r"(\d{4}-\d{2}-\d{2}|\d{1,2}\s+\w+\s+\d{4}|\w+\s+\d{1,2},?\s+\d{4})",
-            re.IGNORECASE,
-        )
-        dm = date_pat.search(block)
-        if dm:
-            deadline_raw = dm.group(1).strip()
-            deadline_iso = _parse_date(deadline_raw)
-
-        desc_m = re.search(r"<p[^>]*>(.*?)</p>", block, re.DOTALL | re.IGNORECASE)
+        # Description: first <p> after the badge
+        post = html_text[badge_pos: badge_pos + 1500]
+        desc_m = re.search(r"<p[^>]*>(.*?)</p>", post, re.DOTALL | re.IGNORECASE)
         description = _strip_tags(desc_m.group(1)).strip()[:400] if desc_m else None
 
         opps.append({
             "title":       title_raw,
             "url":         url,
-            "deadline_iso": deadline_iso,
-            "deadline_raw": deadline_raw,
+            "deadline_iso": None,
+            "deadline_raw": None,
             "description": description,
         })
 
@@ -268,6 +268,12 @@ def _fetch_nserc_opportunities() -> list[dict]:
         "Accept-Language": "en-CA,en;q=0.9",
     })
 
+    # --- Try JSON API first ---
+    json_opps = _fetch_nserc_json(session)
+    if json_opps:
+        return json_opps
+    print("  NSERC: JSON API unavailable — falling back to HTML parser")
+
     all_opps: list[dict] = []
 
     for page_num in range(0, MAX_PAGES):
@@ -281,14 +287,8 @@ def _fetch_nserc_opportunities() -> list[dict]:
             break
 
         if page_num == 0:
-            idx = html_text.find("/en/funding/funding-opportunity/")
-            if idx > 0:
-                print(f"  NSERC: first opportunity link at char {idx} ✓")
-            else:
-                # Check for heading-based content
-                idx2 = html_text.find("funding-opportunity")
-                print(f"  NSERC: no opportunity hrefs on page 0 (first 'funding-opportunity' at {idx2})")
-                print(f"  NSERC page 0 length: {len(html_text)} chars")
+            badge_count = html_text.lower().count(">open<")
+            print(f"  NSERC page 0: {len(html_text)} chars, '>Open<' badges: {badge_count}")
 
         page_opps = _parse_opportunities_from_html(html_text)
         if not page_opps:

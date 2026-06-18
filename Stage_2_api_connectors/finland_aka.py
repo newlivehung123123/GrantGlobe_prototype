@@ -200,10 +200,15 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
         pos   = m.start()
         block = html_text[pos: pos + 1500]
 
+        # Strip HTML tags from the block before searching for date labels.
+        # The AKA page wraps "Call opens"/"Call closes" in <strong> tags, so a raw
+        # HTML search sees e.g. "closes</strong> 14 Oct 2026" which breaks [^<] patterns.
+        block_text = _strip_tags(block)
+
         # Deadline ("Call closes")
         deadline_iso = None
         deadline_raw = None
-        cm = _CLOSES_PAT.search(block)
+        cm = _CLOSES_PAT.search(block_text)
         if cm:
             deadline_raw = cm.group(1).strip()
             # Handle "Nov 2026" (no day given) → first of month
@@ -213,7 +218,7 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
 
         # Open date ("Call opens")
         open_date_iso = None
-        om = _OPENS_PAT.search(block)
+        om = _OPENS_PAT.search(block_text)
         if om:
             raw = om.group(1).strip()
             if not re.search(r"^\d{1,2}\s", raw):

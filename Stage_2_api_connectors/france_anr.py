@@ -143,59 +143,59 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
     """
     Extract ANR open calls from the listing HTML.
 
-    Each call appears as:
-      - A category label (e.g., "Specific call for proposals" or "France 2030")
-      - Two dates: open_date - close_date (DD/MM/YYYY - DD/MM/YYYY)
+    Each call card contains (in order):
+      - Two dates: DD/MM/YYYY (open) and DD/MM/YYYY (close), appearing BEFORE the title link
       - An <h2> with the title link: /en/call-for-proposals-details/call/{slug}/
       - A description paragraph
       - A duplicate "Plus de détails" link (skipped)
-    """
-    opps: list[dict] = []
-    seen_urls: set[str] = set()
 
+    Strategy: precompute positions of all dates and all links, then for each link
+    attribute the dates that fall between the previous link's end and this link's start.
+    This correctly pairs each grant's date fields with its own link, regardless of
+    how many bytes of surrounding HTML sit between them.
+    """
+    # Precompute all date positions in document order
+    date_matches = [(m.start(), m.group(1)) for m in _ANR_DATE_PAT.finditer(html_text)]
+
+    # Collect all valid call links (deduplicated by URL, "Plus de détails" skipped)
+    raw_links: list[tuple[int, int, str, str]] = []  # (start, end, href, link_text)
+    seen_urls: set[str] = set()
     for m in _LINK_PAT.finditer(html_text):
         href_raw  = m.group(1).strip()
         link_text = _strip_tags(m.group(2)).strip()
-
-        # Skip "Plus de détails" duplicate links
-        if link_text.lower().startswith("plus de détails") or \
-           link_text.lower().startswith("plus de details"):
+        if link_text.lower().startswith("plus de") or not link_text or len(link_text) < 5:
             continue
-
-        if not link_text or len(link_text) < 5:
-            continue
-
         url = href_raw if href_raw.startswith("http") else f"{ANR_BASE}{href_raw}"
         if url in seen_urls:
             continue
         seen_urls.add(url)
+        raw_links.append((m.start(), m.end(), href_raw, link_text))
 
-        pos = m.start()
+    opps: list[dict] = []
+    prev_link_end = 0
 
-        # Look 800 chars BEFORE the link for date range: DD/MM/YYYY - DD/MM/YYYY
-        pre_block = html_text[max(0, pos - 800): pos]
-        dates = _ANR_DATE_PAT.findall(pre_block)
-        # Take the two most recent dates (closest to the link)
+    for link_start, link_end, href_raw, link_text in raw_links:
+        url = href_raw if href_raw.startswith("http") else f"{ANR_BASE}{href_raw}"
+
+        # Dates that appear between the end of the previous call's link and this link's start
+        between_dates = [d for pos, d in date_matches if prev_link_end <= pos < link_start]
+        prev_link_end = link_end
+
         open_date_iso = None
         deadline_iso  = None
         deadline_raw  = None
-        if len(dates) >= 2:
-            open_date_iso = _parse_date(dates[-2])
-            deadline_raw  = dates[-1]
-            deadline_iso  = _parse_date(dates[-1])
-        elif len(dates) == 1:
-            deadline_raw = dates[-1]
-            deadline_iso = _parse_date(dates[-1])
+        if len(between_dates) >= 2:
+            open_date_iso = _parse_date(between_dates[-2])
+            deadline_raw  = between_dates[-1]
+            deadline_iso  = _parse_date(between_dates[-1])
+        elif len(between_dates) == 1:
+            deadline_raw = between_dates[-1]
+            deadline_iso = _parse_date(between_dates[-1])
 
-        # Category label (e.g., "Specific call for proposals", "France 2030")
-        call_type = "Specific call for proposals"
-        if "france-2030" in href_raw:
-            call_type = "France 2030"
-        elif "france 2030" in pre_block[-300:].lower():
-            call_type = "France 2030"
+        call_type = "France 2030" if "france-2030" in href_raw else "Specific call for proposals"
 
-        # Description: first <p> in the 1500-char block AFTER the link
-        post_block = html_text[pos: pos + 1500]
+        # Description: first <p> in 1500-char block after the link
+        post_block = html_text[link_start: link_start + 1500]
         desc_m = re.search(r"<p[^>]*>(.*?)</p>", post_block, re.DOTALL | re.IGNORECASE)
         description = _strip_tags(desc_m.group(1)).strip()[:400] if desc_m else None
 
