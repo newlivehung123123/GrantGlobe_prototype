@@ -169,6 +169,10 @@ def _parse_detail(url: str, session: requests.Session) -> dict | None:
             break
 
     # ── description ──────────────────────────────────────────────────────────
+    # Anchor past title to skip nav boilerplate
+    _tpos = text.find(title[:40])
+    _content = text[_tpos:] if _tpos >= 0 else text
+
     desc = ""
     for pat in [
         r'Esta convocatoria[^.]{20,}(?:\.[^.]{10,}){0,2}\.',
@@ -176,12 +180,21 @@ def _parse_detail(url: str, session: requests.Session) -> dict | None:
         r'La presente convocatoria[^.]{20,}\.',
         r'[A-ZÁÉÍÓÚÑ][^.]{80,}\.',
     ]:
-        dm = re.search(pat, text, re.IGNORECASE)
+        dm = re.search(pat, _content, re.IGNORECASE)
         if dm:
             candidate = dm.group(0).strip()
             # Skip JS or CSS artifacts
-            if not any(kw in candidate for kw in ['window.', 'function', '{', '}']):
+            if not any(kw in candidate for kw in ['window.', 'function', '{', '}', 'Pasar al', 'Buscar']):
                 desc = candidate[:500]
+                break
+
+    # Last-resort: first sentence >60 chars after title that isn't nav
+    if not desc:
+        sents = re.split(r'(?<=[.!?])\s+', _content)
+        for s in sents[1:]:
+            s = s.strip()
+            if len(s) > 60 and not any(kw in s for kw in ['Buscar', 'Pasar al', 'window.', '{']):
+                desc = s[:500]
                 break
 
     return {
