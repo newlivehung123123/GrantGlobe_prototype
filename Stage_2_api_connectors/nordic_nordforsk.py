@@ -305,7 +305,7 @@ def _map_call(opp: dict) -> dict | None:
         "individual_eligibility":   [],
         "domain":                   "api_nordforsk",
         "review_status":            "approved",
-        "requires_review':          False,
+        "requires_review":          False,
         "crawl_date":               datetime.date.today().isoformat(),
         "content_hash":             hashlib.sha256(
             f"{opp_id}|{title}|{deadline_iso}".encode()
