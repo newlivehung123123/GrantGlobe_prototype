@@ -298,6 +298,62 @@ def _fix_acronyms(text: str | None) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# URL pattern blocklist — categorically non-grant URLs
+# ---------------------------------------------------------------------------
+# These patterns identify URLs that can never be a specific grant opportunity
+# page regardless of uniqueness.  Applied before the live-URL validator.
+
+_BLOCKED_URL_PATTERNS_RAW: list[str] = [
+    # EU CORDIS — completed/funded project database, never open calls
+    r'cordis\.europa\.eu/project/',
+    # EU Funding Portal homepage — generic listing
+    r'ec\.europa\.eu/info/funding-tenders/opportunities/portal/screen/home',
+    # EU success stories — funded project write-ups, not open calls
+    r'projects\.research-and-innovation\.ec\.europa\.eu/en/projects/success-stories/',
+    # EC open-calls listing page
+    r'funding-programmes-and-open-calls',
+    # Language-preference query parameter — always a wrong-locale duplicate
+    r'[?&]prefLang=',
+    # REA news articles — not grant calls
+    r'rea\.ec\.europa\.eu/news/',
+    # REA reporting pages — grant reporting, not open calls
+    r'rea\.ec\.europa\.eu.*grants-reporting',
+]
+
+_BLOCKED_COMPILED: list[_re.Pattern] = [
+    _re.compile(p) for p in _BLOCKED_URL_PATTERNS_RAW
+]
+
+
+def _has_bad_url_pattern(url: str | None) -> bool:
+    """Return True if url categorically cannot be a specific grant page."""
+    if not url:
+        return False
+    # UKRI: only /opportunity/ sub-paths are actual open-call pages.
+    # Every other ukri.org path (/what-we-do/, /publications/, /councils/,
+    # /manage-your-award/, gtr.ukri.org/, ?pg= listings, etc.) is guidance,
+    # a thematic investment area, or a funded-project record — not an open call.
+    if 'ukri.org' in url and '/opportunity/' not in url:
+        return True
+    return any(p.search(url) for p in _BLOCKED_COMPILED)
+
+
+def _filter_bad_url_patterns(grants: list[dict]) -> list[dict]:
+    """Remove records whose primary URL matches a known non-grant-page pattern."""
+    good: list[dict] = []
+    dropped = 0
+    for g in grants:
+        url = g.get("application_portal_url") or g.get("source_url") or ""
+        if _has_bad_url_pattern(url):
+            dropped += 1
+        else:
+            good.append(g)
+    if dropped:
+        print(f"  URL pattern filter: removed {dropped} record(s) with non-grant URLs")
+    return good
+
+
+# ---------------------------------------------------------------------------
 # URL validation
 # ---------------------------------------------------------------------------
 
@@ -487,6 +543,9 @@ def export(include_closed: bool, output_path: Path) -> tuple[int, str]:
     if len(deduped) < len(grants):
         print(f"  Deduplication: removed {len(grants) - len(deduped)} duplicate(s)")
     grants = deduped
+
+    # ── URL pattern blocklist — remove categorically non-grant URLs ─────
+    grants = _filter_bad_url_patterns(grants)
 
     # ── URL validation — drop records with broken links ─────────────────
     print(f"  Validating URLs for {len(grants)} records…")
