@@ -446,6 +446,11 @@ def _verify_grant(grant: dict, timeout: int = 12) -> tuple[dict, bool, str]:
     if not url:
         return grant, True, "no_url"
 
+    # API-sourced records are authoritative — skip content verification entirely.
+    # Their URLs, titles, and deadlines come directly from the funder's own database.
+    if grant.get("domain") and grant["domain"].startswith("api_"):
+        return grant, True, "api_source_skip"
+
     domain = _up(url).netloc.lower().lstrip("www.")
     if any(domain.endswith(s) for s in _SKIP_VALIDATION_DOMAINS):
         return grant, True, "skip_domain"
