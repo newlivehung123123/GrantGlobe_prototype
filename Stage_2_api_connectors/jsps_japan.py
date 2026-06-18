@@ -110,42 +110,59 @@ def _parse_schedule(html: str) -> list[dict]:
     """
     Extract future recruitment rounds from a JSPS application schedule page.
 
-    Each <tr> in the schedule table has columns:
+    The page is organised into sections headed by <h3>FY20XX</h3>.
+    Each section contains a table with columns:
       Recruitment | Application deadline | Selection results | Arrival periods | # fellowships
 
-    Returns list of dicts: {recruitment, deadline, deadline_raw, count}.
+    We parse FY directly from the section heading (more reliable than
+    inferring it from the deadline date), and only include rounds whose
+    deadline is strictly today or later.
+
+    Returns list of dicts: {fy, recruitment, deadline, deadline_raw, count}.
     """
-    today    = datetime.date.today()
-    cutoff   = today - datetime.timedelta(days=14)  # 2-week grace window
+    today  = datetime.date.today()
     rounds: list[dict] = []
 
-    # Find all <tr> rows
-    rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html, re.DOTALL | re.IGNORECASE)
-    for row in rows:
-        cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
-        if len(cells) < 4:
-            continue
-        recruitment = _strip_tags(cells[0]).strip()   # e.g. "1st"
-        deadline_raw = _strip_tags(cells[1]).strip()  # e.g. "August 28, 2026 (by 5 p.m. (JST))"
-        count_raw    = _strip_tags(cells[4]).strip() if len(cells) > 4 else ""
+    # Split into FY sections using h2-h4 headings that contain "FY20XX"
+    fy_pat = re.compile(r'<h[2-4][^>]*>[^<]*FY(20\d{2})[^<]*</h[2-4]>', re.IGNORECASE)
+    section_starts = [(int(m.group(1)), m.end()) for m in fy_pat.finditer(html)]
 
-        if not deadline_raw or not re.search(r'\d{4}', deadline_raw):
-            continue
+    if not section_starts:
+        return rounds  # page structure unexpected
 
-        deadline = _parse_date(deadline_raw)
-        if deadline is None or deadline < cutoff:
-            continue
+    # Add sentinel for end of last section
+    section_starts.append((None, len(html)))
 
-        # Count of fellowships
-        count_m = re.search(r'(\d+)', count_raw)
-        count   = int(count_m.group(1)) if count_m else None
+    for i, (fy, start) in enumerate(section_starts[:-1]):
+        section_html = html[start:section_starts[i + 1][1]]
 
-        rounds.append({
-            "recruitment": recruitment,
-            "deadline":    deadline,
-            "deadline_raw": deadline_raw,
-            "count":       count,
-        })
+        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', section_html, re.DOTALL | re.IGNORECASE)
+        for row in rows:
+            cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
+            if len(cells) < 4:
+                continue
+
+            recruitment = _strip_tags(cells[0]).strip()   # e.g. "1st"
+            deadline_raw = _strip_tags(cells[1]).strip()  # e.g. "August 28, 2026 (by 5 p.m. (JST))"
+            count_raw    = _strip_tags(cells[4]).strip() if len(cells) > 4 else ""
+
+            if not deadline_raw or not re.search(r'\d{4}', deadline_raw):
+                continue
+
+            deadline = _parse_date(deadline_raw)
+            if deadline is None or deadline < today:  # strict: no grace window
+                continue
+
+            count_m = re.search(r'(\d+)', count_raw)
+            count   = int(count_m.group(1)) if count_m else None
+
+            rounds.append({
+                "fy":          fy,
+                "recruitment": recruitment,
+                "deadline":    deadline,
+                "deadline_raw": deadline_raw,
+                "count":       count,
+            })
 
     return rounds
 
@@ -155,13 +172,13 @@ def _parse_schedule(html: str) -> list[dict]:
 def _build_record(prog: dict, rnd: dict) -> dict:
     today    = datetime.date.today()
     deadline = rnd["deadline"]
-    # Derive fiscal year from deadline
-    fy = deadline.year if deadline.month < 4 else deadline.year + 1
+    fy       = rnd["fy"]  # from section heading, not computed from deadline year
     title = f"{prog['grant_title_base']} (FY{fy}, {rnd['recruitment']} Recruitment)"
-    # Unique URL: about page + fragment so each round is distinct
-    url = f"{prog['about_url']}#fy{fy}-{rnd['recruitment'].rstrip('tdhrs')}"
+    # Unique URL fragment: strip ordinal suffix (st/nd/rd/th) cleanly
+    num = re.sub(r'(?:st|nd|rd|th)$', '', rnd['recruitment'].lower())
+    url = f"{prog['about_url']}#fy{fy}-r{num}"
 
-    raw_str = f"{prog['code']}|fy{fy}|{rnd['recruitment']}|{deadline.isoformat()}"
+    raw_str = f"{prog['code']}|fy{fy}|{num}|{deadline.isoformat()}"
     h       = hashlib.sha256(raw_str.encode()).hexdigest()
 
     desc = prog["description"]
