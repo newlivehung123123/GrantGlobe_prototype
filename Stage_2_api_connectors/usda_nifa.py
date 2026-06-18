@@ -53,18 +53,32 @@ TOPIC_SECTOR_MAP = {
     "community vitality":        "Social Sciences & Humanities",
 }
 
+# Field-name tokens that immediately follow a metadata value — used to truncate
+_NIFA_FIELD_NAMES = [
+    "Contact for Electronic", "For more Information", "Funding Opportunity Number",
+    "Assistance Listing", "Estimated Total", "Cost Sharing", "Range of Awards",
+    "Topics", "Programs", "Eligibility", "Posted Date", "Page last updated",
+]
+
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _strip_tags(html: str) -> str:
+    """Strip tags; preserve newlines at block-element boundaries."""
     html = re.sub(r'<script[^>]*>.*?</script>', ' ', html, flags=re.DOTALL | re.IGNORECASE)
     html = re.sub(r'<style[^>]*>.*?</style>',  ' ', html, flags=re.DOTALL | re.IGNORECASE)
+    # Block-level closers → newline so field values don't bleed into adjacent labels
+    html = re.sub(r'</(?:p|div|dt|dd|tr|li|h[1-6]|section|article)[^>]*>',
+                  '\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'<br\s*/?>',  '\n', html, flags=re.IGNORECASE)
     html = re.sub(r'<[^>]+>', ' ', html)
     html = re.sub(r'&nbsp;', ' ', html)
     html = re.sub(r'&amp;', '&', html)
     html = re.sub(r'&lt;', '<', html)
     html = re.sub(r'&gt;', '>', html)
-    return re.sub(r'\s+', ' ', html).strip()
+    # Collapse horizontal whitespace only; preserve newlines
+    html = re.sub(r'[^\S\n]+', ' ', html)
+    return html.strip()
 
 
 def _parse_date(text: str) -> datetime.date | None:
@@ -83,14 +97,15 @@ def _parse_date(text: str) -> datetime.date | None:
 
 
 def _parse_amount(text: str) -> int | None:
-    """Parse dollar amounts like '$300,000,000' or '$10,000' into integer."""
+    """Parse dollar amounts like '$300,000,000' into integer."""
     m = re.search(r'\$([\d,]+(?:\.\d+)?)\s*(?:million|M\b)?', text, re.IGNORECASE)
     if not m:
         return None
     num_str = m.group(1).replace(',', '')
     try:
         val = float(num_str)
-        if 'million' in text[m.start():m.end()+6].lower() or re.search(r'\bM\b', text[m.end():m.end()+3]):
+        suffix = text[m.end():m.end() + 8].lower()
+        if 'million' in suffix or re.match(r'\s*M\b', suffix):
             val *= 1_000_000
         return int(val)
     except ValueError:
@@ -104,6 +119,15 @@ def _infer_sectors(topics: list[str], title: str, desc: str) -> list[str]:
         if keyword in combined and sector not in sectors:
             sectors.append(sector)
     return sectors or ["Research & Innovation"]
+
+
+def _truncate_at_field(raw: str) -> str:
+    """Remove trailing NIFA field labels that follow a value on the same line."""
+    for tok in _NIFA_FIELD_NAMES:
+        idx = raw.find(tok)
+        if idx > 0:
+            raw = raw[:idx]
+    return raw.strip()
 
 
 def _fetch(url: str, session: requests.Session) -> str:
@@ -146,64 +170,70 @@ def _parse_detail(url: str, session: requests.Session) -> dict | None:
     if not title or len(title) < 5:
         return None
 
-    # ── find main content area (after breadcrumb) ─────────────────────────────
-    # Anchor past "Funding Opportunities" breadcrumb
-    crumb_pos = html.find('/grants/funding-opportunities')
-    main_html = html[crumb_pos:] if crumb_pos > 0 else html
+    # ── content area: everything after the closing </h1> ─────────────────────
+    h1_end = tm.end() if tm else 0
+    after_h1 = html[h1_end:]
 
     # ── description ───────────────────────────────────────────────────────────
     desc = ""
-    # Look for <p> blocks in main content; skip navigation boilerplate
-    paras = re.findall(r'<p[^>]*>(.*?)</p>', main_html, re.DOTALL | re.IGNORECASE)
-    skip_kw = ['skip to', 'official website', 'https://', 'cookie', 'javascript',
-               'View Topics', 'View Grants', 'View Data', 'View Resources', 'Contact Us',
-               'feedback', 'Website Survey', 'Stay Connected', 'Subscribe']
+    paras = re.findall(r'<p[^>]*>(.*?)</p>', after_h1, re.DOTALL | re.IGNORECASE)
+    skip_kw = [
+        '.gov means', 'federal government websites', 'sensitive information',
+        'contact us', 'feedback', 'subscribe', 'consent', 'cookie',
+        'please leave', 'skip to', 'reasonable accommodation',
+        'language access', 'return to top', 'stay connected',
+    ]
     for p in paras:
         candidate = _strip_tags(p).strip()
         if len(candidate) < 60:
             continue
-        if any(kw.lower() in candidate.lower() for kw in skip_kw):
+        if any(kw in candidate.lower() for kw in skip_kw):
             continue
         desc = candidate[:500]
         break
 
-    # ── structured metadata ───────────────────────────────────────────────────
-    # Strip all tags from main_html for text-based parsing
-    text = _strip_tags(main_html)
+    # ── structured metadata (newline-aware text) ──────────────────────────────
+    text = _strip_tags(after_h1)
 
     # Closing Date
     deadline: datetime.date | None = None
     deadline_raw = ""
-    cd_m = re.search(r'Closing Date\s+([^\n]{8,60})', text)
+    cd_m = re.search(r'Closing Date\s*\n\s*([^\n]{8,80})', text)
     if cd_m:
-        deadline_raw = cd_m.group(1).strip()
+        deadline_raw = _truncate_at_field(cd_m.group(1).strip())
         deadline = _parse_date(deadline_raw)
+    # Fallback: same line (no newline in output)
+    if not deadline_raw:
+        cd_m2 = re.search(r'Closing Date\s+([A-Z][a-z]+(?:day)?,\s+[A-Z][a-z]+ \d+, \d{4})', text)
+        if cd_m2:
+            deadline_raw = cd_m2.group(1).strip()
+            deadline = _parse_date(deadline_raw)
 
     # Posted Date
     posted_raw = ""
-    pd_m = re.search(r'Posted Date\s+([^\n]{8,40})', text)
+    pd_m = re.search(r'Posted Date\s*\n\s*([^\n]{8,60})', text)
     if pd_m:
         posted_raw = pd_m.group(1).strip()
 
     # Estimated Total Program Funding
     amount_max: int | None = None
     amount_raw = ""
-    etpf_m = re.search(r'Estimated Total Program Funding\s+(\$[\d,]+(?:\s+\w+)?)', text)
+    etpf_m = re.search(r'Estimated Total Program Funding\s*\n\s*(\$[\d,]+(?:\s*\w+)?)', text)
     if etpf_m:
         amount_raw = etpf_m.group(1).strip()
         amount_max = _parse_amount(amount_raw)
 
-    # Range of Awards
+    # Range of Awards — minimum end
     amount_min: int | None = None
-    roa_m = re.search(r'Range of Awards\s+(\$[\d,]+)', text)
+    roa_m = re.search(r'Range of Awards\s*\n\s*(\$[\d,]+)', text)
     if roa_m:
         amount_min = _parse_amount(roa_m.group(1))
 
     # Funding Opportunity Number
-    fon_m = re.search(r'Funding Opportunity Number\s+(\S+)', text)
+    fon_m = re.search(r'Funding Opportunity Number\s*\n\s*(\S+)', text)
     fon = fon_m.group(1).strip() if fon_m else ""
 
-    # Topics (from topic links)
+    # Topics (from topic links in full HTML)
     topics = re.findall(r'href="/topics/[^"]+">([^<]+)<', html)
     topics = [t.strip() for t in topics if len(t.strip()) > 2]
 
@@ -330,6 +360,12 @@ def main() -> None:
         print(f"\n[DRY RUN] First 3 records:")
         for r in records[:3]:
             print(json.dumps(r, indent=2, default=str))
+        # Also show one with a non-null deadline if any
+        deadline_records = [r for r in records if r.get("application_deadline")]
+        print(f"\n[DRY RUN] {len(deadline_records)} records have a future deadline.")
+        if deadline_records:
+            print("Sample with deadline:")
+            print(json.dumps(deadline_records[0], indent=2, default=str))
         print(f"\n[DRY RUN] Would upsert {len(records)} records.")
         return
 
