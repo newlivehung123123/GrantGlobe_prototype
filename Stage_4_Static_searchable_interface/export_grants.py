@@ -115,21 +115,41 @@ def _build_query(include_closed: bool) -> str:
     return f"""
 SELECT
 {_EXPORT_COLUMNS}
-FROM grants
+FROM grants g
 WHERE
     (
-        review_status = 'approved'
-        OR (requires_review = false AND review_status = 'pending')
+        g.review_status = 'approved'
+        OR (g.requires_review = false AND g.review_status = 'pending')
     )
-{closed_clause}ORDER BY
-    CASE current_status
+{closed_clause}
+    -- Quality filter: exclude records from listing pages where no specific
+    -- grant URL was captured.  A record is treated as a listing-page extract
+    -- when application_portal_url is NULL and its source_url was shared by
+    -- more than one approved/auto-approved grant (i.e. the crawler hit a
+    -- page that contained multiple opportunities and the LLM didn't extract
+    -- individual links for them).
+    AND (
+        g.application_portal_url IS NOT NULL
+        OR (
+            SELECT COUNT(*)
+            FROM grants g2
+            WHERE g2.source_url = g.source_url
+              AND (
+                  g2.review_status = 'approved'
+                  OR (g2.requires_review = false AND g2.review_status = 'pending')
+              )
+        ) = 1
+    )
+
+ORDER BY
+    CASE g.current_status
         WHEN 'Open'     THEN 1
         WHEN 'Upcoming' THEN 2
         WHEN 'Rolling'  THEN 3
         WHEN 'Closed'   THEN 5
         ELSE                 4
     END,
-    application_deadline ASC NULLS LAST
+    g.application_deadline ASC NULLS LAST
 """
 
 

@@ -25,6 +25,13 @@ from typing import Any
 import structlog
 
 from .batch_processor import mark_completed, mark_failed
+from .normaliser import (
+    GRANT_TYPES_VOCAB,
+    INDIV_ELIGIBILITY_VOCAB,
+    ORG_TYPES_VOCAB,
+    THEMATIC_SECTORS_VOCAB,
+    _STATUS_VOCAB,
+)
 
 # ---------------------------------------------------------------------------
 # Model identifier
@@ -51,6 +58,8 @@ CRITICAL RULES — read carefully before extracting:
    return null for that field. Do not guess, infer, or construct plausible values.
 
 3. Return exactly what the source text says for all raw text fields.
+   Preserve original capitalisation exactly — do not alter casing. Acronyms
+   such as TWAS, UNESCO, NSF, NIH, EU, UK must appear exactly as in the source.
    The normalisation system will standardise values — your job is accurate extraction only.
 
 4. Assign a confidence score to every field:
@@ -90,7 +99,89 @@ CRITICAL RULES — read carefully before extracting:
     written. Do not translate.
     Controlled-vocabulary matching is English-only in this prototype. If the source is non-English, extract values in the source language — they will be preserved in the raw data and flagged for review.
     For free-text fields (grant_title, funder_name, description), preserve the original
-    language text. Set source_language_raw to the language you detect.\
+    language text. Set source_language_raw to the language you detect.
+
+13. For application_portal_url: set this to the direct URL of the INDIVIDUAL grant
+    opportunity page — not the page you are currently reading, unless that page is itself
+    dedicated to one single grant.
+    If the page is a listing or index (i.e. it contains multiple opportunities), you MUST
+    extract the specific URL for each individual opportunity from any hyperlinks visible in
+    the source text, and set application_portal_url to that URL.
+    If no individual URL is available for a listed grant, do NOT extract that grant at all —
+    omit it from the output entirely. It is better to return fewer high-quality records than
+    to return records that cannot link to the specific opportunity.\
+"""
+
+# ---------------------------------------------------------------------------
+# Output-format instructions  (replaces server-side response_schema
+# enforcement, which the synchronous generate_content path does not apply)
+# ---------------------------------------------------------------------------
+
+OUTPUT_FORMAT_INSTRUCTIONS = """\
+OUTPUT FORMAT — follow these rules exactly:
+
+Return ONLY a JSON array. No markdown code fences, no commentary, and no text
+before or after the array. If the page contains no grant, fellowship,
+scholarship, or funding opportunity, return exactly: []
+
+Each element of the array must be a JSON object with EXACTLY these keys:
+"grant_title", "funder_name", "description", "application_deadline_raw",
+"deadline_notes", "eoi_deadline_raw", "grant_opening_date_raw",
+"funding_amount_min", "funding_amount_max", "currency_raw",
+"current_status_raw", "application_portal_url", "source_language_raw",
+"ai_focused", "individuals_not_eligible", "organisation_types_raw",
+"individual_eligibility_raw", "applicant_base_raw", "geographic_focus_raw",
+"thematic_sectors_raw", "grant_types_raw", "confidence_scores", "raw_notes"
+
+"confidence_scores" is REQUIRED on every object. It must be a JSON object
+with exactly these keys: "grant_title", "funder_name",
+"application_deadline", "eoi_deadline", "grant_opening_date",
+"funding_amount", "current_status", "geographic_focus", "thematic_sectors",
+"individual_eligibility", "organisation_types", "applicant_base",
+"ai_focused" — each value must be one of "high", "medium", "low",
+"not_found".
+
+Fields ending in "_raw" that are lists (organisation_types_raw,
+individual_eligibility_raw, applicant_base_raw, geographic_focus_raw,
+thematic_sectors_raw, grant_types_raw) must be JSON arrays of strings; use []
+when nothing applies. "funding_amount_min" and "funding_amount_max" must be
+JSON numbers or null. "ai_focused" and "individuals_not_eligible" must be
+true, false, or null. All other unknown scalar values must be null.\
+"""
+
+# ---------------------------------------------------------------------------
+# Controlled-vocabulary hint  (reduces normalisation "Others" fallbacks)
+# ---------------------------------------------------------------------------
+#
+# normalise_controlled_vocab() maps each *_raw list item to one of these
+# canonical strings (exact match, then fuzzy match >= 85). Anything that
+# fails both falls back to "Others" and routes the grant to manual review.
+# Telling the model the canonical wording up front means it can use that
+# wording directly when the source content matches a category, so fewer
+# correct extractions get flagged purely for using different phrasing
+# (e.g. "Researchers" vs "Senior / Established Researcher or Professional",
+# "Education" vs "Education and Training").  This does NOT override rule 3
+# (extract what the source says) — it only asks the model to prefer the
+# listed wording when the source content clearly corresponds to one of
+# these categories.
+
+CONTROLLED_VOCAB_HINT = f"""\
+CONTROLLED VOCABULARY — preferred wording:
+
+For the fields below, if the source content clearly corresponds to one of
+the categories listed, use that exact wording in the *_raw list/field
+(in addition to or instead of the source's own phrasing). If nothing fits,
+extract the source's own wording as usual — it will be reviewed manually.
+
+thematic_sectors_raw — prefer from: {", ".join(THEMATIC_SECTORS_VOCAB)}
+
+individual_eligibility_raw — prefer from: {", ".join(INDIV_ELIGIBILITY_VOCAB)}
+
+organisation_types_raw — prefer from: {", ".join(ORG_TYPES_VOCAB)}
+
+grant_types_raw — prefer from: {", ".join(GRANT_TYPES_VOCAB)}
+
+current_status_raw — prefer from: {", ".join(_STATUS_VOCAB)}\
 """
 
 # ---------------------------------------------------------------------------
@@ -279,12 +370,21 @@ def _extract_text_from_candidate(candidate) -> str:
 def build_page_prompt(page_text: str) -> str:
     """Return the complete prompt to submit for a single page.
 
-    Prepends the system prompt so that each individual request in the batch
-    carries the full extraction instruction set, matching the Gemini Batch
-    API's per-request structure (no separate system-message slot in batch
-    mode).
+    Prepends the system prompt and the explicit output-format contract so
+    every request carries the full extraction instruction set.  The format
+    block is essential on the synchronous generate_content path, where no
+    response_schema is enforced server-side: without it the model omits
+    ``confidence_scores`` and downstream validation discards every grant.
     """
-    return SYSTEM_PROMPT + "\n\nPage content:\n" + page_text
+    return (
+        SYSTEM_PROMPT
+        + "\n\n"
+        + OUTPUT_FORMAT_INSTRUCTIONS
+        + "\n\n"
+        + CONTROLLED_VOCAB_HINT
+        + "\n\nPage content:\n"
+        + page_text
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -475,6 +575,77 @@ def parse_llm_response(raw_json_str: str) -> list[dict]:
     return valid
 
 
+def parse_llm_response_tolerant(raw_text: str) -> list[dict]:
+    """Parse a Gemini response into grant dicts, tolerating common defects.
+
+    Differences from the strict ``parse_llm_response``:
+
+    1. Markdown code fences (``` or ```json) are stripped before decoding.
+    2. ``json.JSONDecoder().raw_decode`` is used from the first ``[`` (or
+       ``{``), so trailing prose after the JSON value — the source of the
+       "Extra data" failures observed in production — is ignored.
+    3. A bare top-level object is wrapped into a single-element list.
+    4. Items missing ``confidence_scores`` are RETAINED with an empty dict
+       substituted, rather than silently discarded.  Absent confidence
+       scores degrade the record's aggregate score and route it to the
+       review queue — the correct quality outcome — instead of erasing the
+       extraction entirely.
+    5. Items are dropped only when they are not objects or carry no usable
+       ``grant_title``.
+
+    Raises:
+        ValueError: when no JSON value can be located or decoded at all.
+    """
+    s = (raw_text or "").strip()
+    if not s:
+        raise ValueError("empty LLM response")
+
+    # Strip markdown fences if the model wrapped its output despite
+    # instructions (observed occasionally even with JSON response MIME type).
+    if s.startswith("```"):
+        first_newline = s.find("\n")
+        s = s[first_newline + 1:] if first_newline != -1 else ""
+        if s.rstrip().endswith("```"):
+            s = s.rstrip()[:-3]
+        s = s.strip()
+
+    start = s.find("[")
+    start_obj = s.find("{")
+    if start == -1 and start_obj == -1:
+        raise ValueError("no JSON array or object found in LLM response")
+    if start == -1 or (start_obj != -1 and start_obj < start):
+        start = start_obj
+
+    try:
+        data, _end = json.JSONDecoder().raw_decode(s[start:])
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"LLM response is not valid JSON: {exc}") from exc
+
+    if isinstance(data, dict):
+        data = [data]
+    if not isinstance(data, list):
+        raise ValueError(
+            f"LLM response must decode to a JSON list; got {type(data).__name__!r}."
+        )
+
+    valid: list[dict] = []
+    for idx, item in enumerate(data):
+        if not isinstance(item, dict):
+            log.warning("malformed_item_not_dict", index=idx,
+                        item_type=type(item).__name__)
+            continue
+        title = item.get("grant_title")
+        if not title or not str(title).strip():
+            log.warning("malformed_item_missing_grant_title", index=idx)
+            continue
+        if not isinstance(item.get("confidence_scores"), dict):
+            log.warning("item_missing_confidence_scores_defaulted", index=idx)
+            item["confidence_scores"] = {}
+        valid.append(item)
+
+    return valid
+
+
 # ---------------------------------------------------------------------------
 # Result parsing
 # ---------------------------------------------------------------------------
@@ -570,11 +741,156 @@ def parse_batch_results(
 
 
 # ---------------------------------------------------------------------------
-# Top-level orchestrator
+# Top-level orchestrator — synchronous per-page extraction
 # ---------------------------------------------------------------------------
 
 
 def extract_pages(
+    page_contents: list[dict],
+    conn,
+) -> list[dict]:
+    """Extract grants from prepared pages via synchronous Gemini calls.
+
+    This replaces the Gemini Batch API orchestration (preserved below as
+    ``extract_pages_batch``).  The batch path cannot run against the
+    installed ``google-genai`` SDK: ``Batches.create()`` rejects inline
+    ``requests`` payloads and requires a Cloud Storage input file, and the
+    legacy ``google-generativeai`` package exposes no ``Client`` at all.
+    Synchronous ``generate_content`` calls, one page at a time, are slower
+    but require no extra infrastructure and persist progress per page.
+
+    Args:
+        page_contents: List of dicts with ``url_hash``, ``prompt``, ``row``.
+        conn: Live psycopg2 connection; each page's status is committed as
+            soon as it completes, so an interrupted run loses nothing.
+
+    Returns:
+        Flat list of raw grant dicts (each carrying ``__url_hash``).
+    """
+    if not page_contents:
+        return []
+
+    import os  # noqa: PLC0415
+
+    from google import genai as genai_sdk          # noqa: PLC0415
+    from google.genai import types as genai_types  # noqa: PLC0415
+
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "Neither GOOGLE_API_KEY nor GEMINI_API_KEY is set in the environment."
+        )
+
+    client = genai_sdk.Client(api_key=api_key)
+    config = genai_types.GenerateContentConfig(
+        response_mime_type="application/json",
+        temperature=0.0,
+        # Extraction is a reading task; extended thinking multiplies billed
+        # output tokens roughly tenfold for no quality gain (verified
+        # empirically 12 June 2026: identical grants, ~10x faster).
+        thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
+    )
+
+    # ── self-healing database connection ────────────────────────────────────
+    # Neon closes long-lived connections; a multi-hour run must survive that.
+    # _persist retries each write once on a fresh connection.  Five
+    # consecutive persistence failures abort the pass entirely, so the loop
+    # never pays for API calls whose results cannot be saved.
+    from .db import get_connection  # noqa: PLC0415
+
+    db_conn = conn
+    persist_failures = 0
+
+    def _persist(fn, *args, **kwargs) -> None:
+        nonlocal db_conn
+        for attempt in (1, 2):
+            try:
+                fn(db_conn, *args, **kwargs)
+                return
+            except Exception as exc:  # noqa: BLE001
+                if attempt == 2:
+                    raise
+                log.warning("db_connection_lost_reconnecting", error=str(exc))
+                try:
+                    db_conn.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                db_conn = get_connection()
+
+    all_grants: list[dict] = []
+    pages_done = 0
+
+    for item in page_contents:
+        url_hash: str = item["url_hash"]
+        row: dict = item["row"]
+
+        def _call():
+            return client.models.generate_content(
+                model=MODEL_NAME,
+                contents=item["prompt"],
+                config=config,
+            )
+
+        try:
+            resp = _with_api_retry(_call)
+            raw_text: str = resp.text or ""
+            grants = parse_llm_response_tolerant(raw_text)
+
+            for g in grants:
+                g["__url_hash"] = url_hash
+            all_grants.extend(grants)
+
+            _persist(mark_completed, row["id"], records_extracted=len(grants))
+            persist_failures = 0
+            log.info(
+                "page_extracted",
+                url_hash=url_hash,
+                domain=row.get("domain"),
+                grants=len(grants),
+            )
+        except Exception as exc:  # noqa: BLE001 — any per-page failure is logged
+            log.error("page_extract_failed", url_hash=url_hash, error=str(exc))
+            try:
+                _persist(mark_failed, row["id"], f"extraction_error: {exc}")
+                persist_failures = 0
+            except Exception:  # noqa: BLE001
+                persist_failures += 1
+                log.exception(
+                    "mark_failed_errored",
+                    url_hash=url_hash,
+                    consecutive=persist_failures,
+                )
+                if persist_failures >= 5:
+                    raise RuntimeError(
+                        "Database unreachable for 5 consecutive pages — "
+                        "aborting this pass to avoid paying for API calls "
+                        "whose results cannot be saved."
+                    ) from exc
+
+        pages_done += 1
+        if pages_done % 25 == 0:
+            log.info(
+                "extraction_progress",
+                done=pages_done,
+                total=len(page_contents),
+                grants_so_far=len(all_grants),
+            )
+        time.sleep(0.25)
+
+    log.info(
+        "extraction_pass_complete",
+        pages=len(page_contents),
+        grants=len(all_grants),
+    )
+    return all_grants
+
+
+# ---------------------------------------------------------------------------
+# Legacy Batch API orchestrator (unused — kept for reference)
+# ---------------------------------------------------------------------------
+
+
+def extract_pages_batch(
     page_contents: list[dict],
     conn,
 ) -> list[dict]:
