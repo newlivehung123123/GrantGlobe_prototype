@@ -85,8 +85,10 @@ def _strip_tags(html: str) -> str:
 
 def _parse_date(text: str) -> datetime.date | None:
     """Parse 'August 28, 2026' or 'August 28, 2026 (by 5 p.m. (JST))'."""
-    text = re.sub(r'\s*\(.*?\)', '', text).strip()   # strip parenthetical like "(by 5 p.m. (JST))"
-    text = re.sub(r',?\s*by\s+.*', '', text).strip() # strip "by ..." suffix
+    # Truncate at first '(' — handles nested parens like "(by 5 p.m. (JST))"
+    if '(' in text:
+        text = text[:text.index('(')]
+    text = re.sub(r',?\s*by\s+.*', '', text).strip()
     for fmt in ("%B %d, %Y", "%b %d, %Y", "%Y-%m-%d"):
         try:
             return datetime.datetime.strptime(text.strip(), fmt).date()
