@@ -42,6 +42,7 @@ CONNECTORS = [
     ("Research Ireland",       CONNECTORS_DIR / "ireland_ri.py"),
     ("Spain AEI",              CONNECTORS_DIR / "spain_aei.py"),
     # ── North America ────────────────────────────────────────────────────────
+    ("USDA NIFA",              CONNECTORS_DIR / "usda_nifa.py"),
     ("NSERC Canada",           CONNECTORS_DIR / "canada_nserc.py"),
     # ── Pacific ──────────────────────────────────────────────────────────────
     ("Australia Grants",       CONNECTORS_DIR / "australia.py"),
