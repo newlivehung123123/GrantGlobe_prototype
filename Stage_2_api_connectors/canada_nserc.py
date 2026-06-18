@@ -178,10 +178,10 @@ def _fetch_nserc_json(session: requests.Session) -> list[dict]:
         return []
 
 
-# Blacklist for non-grant headings on the NSERC listing page
+# Headings that are not grant titles on the NSERC listing page
 _HEADING_BLACKLIST = re.compile(
-    r"^(contact|newsletter|find funding|displaying|date modified|"
-    r"email|search terms|include archive|\d+ results? available)$",
+    r"contact\s+newsletter|find\s+funding|search\s+terms|include\s+archive"
+    r"|date\s+modified|displaying\s+\d|\d+\s+results?\s+available",
     re.IGNORECASE,
 )
 
@@ -190,46 +190,36 @@ def _parse_opportunities_from_html(html_text: str) -> list[dict]:
     """
     Extract NSERC funding opportunities from the listing HTML.
 
-    NSERC's Drupal 10 listing does not use anchor-linked h3 headings for grants —
-    the titles appear as plain text nodes (potentially in div/span elements).
-    This parser searches for the "Open" status badges and works backwards to
-    find the associated grant title in the preceding text.
+    NSERC Drupal 10 listing: grant titles appear as plain <h3> headings (no anchor link).
+    Each title heading is immediately followed by a status element whose text is "Open".
 
-    Approach: locate every occurrence of ">Open<" in the HTML (the status badge),
-    then search backwards up to 2000 chars for text that reads like a grant title.
+    Approach:
+      1. Iterate over all <h2>/<h3> headings.
+      2. Check the 600-char block after the heading for an ">Open<" badge.
+      3. Skip blacklisted headings (Contact Newsletter, etc.).
+      4. Construct the individual page URL from a Drupal slug derived from the title.
     """
     opps: list[dict] = []
     seen_urls: set[str] = set()
 
-    # Pattern: any element containing exactly "Open" as text (the status field)
-    open_badge_pat = re.compile(r">Open\s*<", re.IGNORECASE)
+    # Match h2 and h3 headings (grant titles are h3 on this page)
+    heading_pat = re.compile(
+        r"<h[23][^>]*>(.*?)</h[23]>",
+        re.DOTALL | re.IGNORECASE,
+    )
+    # "Open" status badge — any element whose sole text content is "Open"
+    open_badge_pat = re.compile(r">\s*Open\s*<", re.IGNORECASE)
 
-    for bm in open_badge_pat.finditer(html_text):
-        badge_pos = bm.start()
-        # Look backward for a grant title — grab the 2000-char block before the badge
-        pre = html_text[max(0, badge_pos - 2000): badge_pos]
-        # Strip tags to get plain text
-        pre_text = _strip_tags(pre)
-        # Split into non-empty lines
-        lines = [l.strip() for l in pre_text.split("\n") if l.strip()]
-        if not lines:
-            continue
-        # The grant title is the LAST substantive non-metadata line before "Open"
-        title_raw = ""
-        for line in reversed(lines):
-            # Skip short lines, noise, and known non-title patterns
-            if len(line) < 8:
-                continue
-            if _HEADING_BLACKLIST.search(line):
-                continue
-            if re.match(r"^\d+\s+results", line, re.IGNORECASE):
-                continue
-            if re.match(r"^date modified", line, re.IGNORECASE):
-                continue
-            title_raw = line
-            break
-
+    for m in heading_pat.finditer(html_text):
+        title_raw = _strip_tags(m.group(1)).strip()
         if not title_raw or len(title_raw) < 8:
+            continue
+        if _HEADING_BLACKLIST.search(title_raw):
+            continue
+
+        # "Open" badge must appear within 600 chars after this heading
+        post = html_text[m.end(): m.end() + 600]
+        if not open_badge_pat.search(post):
             continue
 
         slug = _title_to_slug(title_raw)
@@ -240,17 +230,16 @@ def _parse_opportunities_from_html(html_text: str) -> list[dict]:
             continue
         seen_urls.add(url)
 
-        # Description: first <p> after the badge
-        post = html_text[badge_pos: badge_pos + 1500]
+        # Description: first <p> in the post block
         desc_m = re.search(r"<p[^>]*>(.*?)</p>", post, re.DOTALL | re.IGNORECASE)
         description = _strip_tags(desc_m.group(1)).strip()[:400] if desc_m else None
 
         opps.append({
-            "title":       title_raw,
-            "url":         url,
+            "title":        title_raw,
+            "url":          url,
             "deadline_iso": None,
             "deadline_raw": None,
-            "description": description,
+            "description":  description,
         })
 
     return opps
