@@ -218,7 +218,7 @@ def _map_solicitation(award: dict) -> dict | None:
         "grant_title":              title,
         "funder_name":              "National Science Foundation",
         "source_url":               portal_url,
-        "application_portal_url":   nsf_search,
+        "application_portal_url":   None,   # portal_url is unique per award; NULL lets export uniqueness check use source_url
         "description":              description,
         "application_deadline":     exp_date,    # award expiry (active until then)
         "application_deadline_raw": award.get("expDate"),

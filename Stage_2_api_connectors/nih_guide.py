@@ -225,7 +225,7 @@ def _map_opportunity(project: dict) -> dict | None:
         "grant_title":              title,
         "funder_name":              funder,
         "source_url":               portal_url,
-        "application_portal_url":   "https://grants.nih.gov/funding/searchGuide/search-results-data.cfm",
+        "application_portal_url":   None,   # portal_url is unique per record; NULL lets the export uniqueness check use source_url
         "description":              description,
         "application_deadline":     deadline_iso,
         "application_deadline_raw": project.get("project_end_date"),
