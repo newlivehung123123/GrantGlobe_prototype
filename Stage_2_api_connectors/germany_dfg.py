@@ -36,21 +36,22 @@ import requests
 DFG_RSS_URL     = "https://www.dfg.de/service/rss/de/323556/feed.rss"
 DFG_BASE        = "https://www.dfg.de"
 
-# Keywords that identify an item as a call for proposals (case-insensitive).
-# Includes German terms because the DFG IFR feed is bilingual/German-heavy.
-CALL_KEYWORDS = [
-    # English
-    "call", "proposal", "funding programme", "funding program",
-    "deadline", "submit", "application", "programme announcement",
-    "tender", "invitation", "solicitation", "open competition",
-    # German
-    "förder", "ausschreibung", "antragstellung", "einreichung",
-    "bewerbung", "programm", "forschungsförderung",
-]
-
-# Items to skip even if they hit a keyword (pure news, not calls)
-EXCLUDE_KEYWORDS = [
-    "press release", "annual report", "interview", "obituary",
+# The DFG IFR feed is curated for researchers — most items are relevant.
+# We exclude obvious non-calls rather than trying to keyword-match calls.
+import re as _re
+_EXCLUDE_PATTERNS = [
+    _re.compile(p, _re.IGNORECASE | _re.UNICODE)
+    for p in [
+        r"kongresse?\s+und\s+tagungen",   # conference listings
+        r"tagungsank",                     # conference announcements
+        r"fotowettbewerb",                 # photo contests
+        r"fachkollegienwahl",              # committee elections
+        r"f[äa]cherstruktur",              # election field structure
+        r"wahlstellen",                    # polling places
+        r"kalender\s+\d{4}.*wettbewerb",  # calendar/competition
+        r"jahresbericht",                  # annual report
+        r"\bjubil[äa]um\b",               # anniversary (pure news)
+    ]
 ]
 
 TOPIC_SECTOR_MAP: dict[str, list[str]] = {
@@ -198,12 +199,14 @@ def _extract_deadline_from_text(text: str) -> str | None:
     return None
 
 
-def _is_call(title: str, description: str) -> bool:
-    """Return True if the item looks like a call for proposals."""
-    combined = (title + " " + description).lower()
-    if any(kw in combined for kw in EXCLUDE_KEYWORDS):
-        return False
-    return any(kw in combined for kw in CALL_KEYWORDS)
+def _is_relevant(title: str, description: str) -> bool:
+    """
+    Return True unless the item matches a known non-call pattern.
+    The DFG IFR feed is researcher-facing, so we accept by default
+    and only exclude obvious non-call content types.
+    """
+    combined = title + " " + description
+    return not any(pat.search(combined) for pat in _EXCLUDE_PATTERNS)
 
 
 def _infer_sectors(text: str) -> list[str]:
@@ -318,12 +321,9 @@ def _fetch_dfg_calls() -> list[dict]:
         if not title or not link:
             continue
 
-        # The DFG IFR feed is mixed German/English — no language URL filter.
-        # Every item in this feed is a funding call or closely related notice.
-        # We filter only on call-relevance keywords (EN + DE) and exclude
-        # obvious non-call items (press releases, etc.).
-        if not _is_call(title, description):
-            print(f"  DFG skip (no call keyword): {title[:80]}")
+        # Accept all items except known non-call content types.
+        if not _is_relevant(title, description):
+            print(f"  DFG skip (excluded): {title[:80]}")
             continue
 
         # Parse dates
