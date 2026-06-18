@@ -136,56 +136,38 @@ def _parse_opportunities_from_html(html_text: str) -> list[dict]:
     """
     Extract opportunities from a UKRI listing page.
 
-    The page is server-rendered WordPress HTML. Each opportunity block
-    looks roughly like:
-
-        <article ...>
-          <h3 ...><a href="/opportunity/slug/">Title</a></h3>
-          ...Closing date: 8 September 2026...
-          ...Funders: ...EPSRC...
-          ...Total fund: £950,000...
-        </article>
-
-    We use a two-stage regex: first extract article blocks, then fields.
+    Actual HTML structure (confirmed from live server):
+      <h3 class="entry-title ukri-entry-title">
+        <a class="ukri-funding-opp__link" href="https://www.ukri.org/opportunity/slug/">Title</a>
+      </h3>
+      <div class="entry-content"><p>Description...</p></div>
+      <dl class="govuk-table opportunity__summary">
+        <div class="govuk-table__row">
+          <dt class="govuk-table__header opportunity-cells">Closing date: </dt>
+          <dd class="govuk-table__cell opportunity-cells">8 September 2026 4:00pm UK time</dd>
+        </div>
+        ...
+      </dl>
     """
     opps: list[dict] = []
 
-    # Extract each opportunity article block
-    article_blocks = re.findall(
-        r'<(?:article|li|div)[^>]+class="[^"]*(?:opportunity|listing)[^"]*"[^>]*>(.*?)</(?:article|li|div)>',
-        html_text,
+    # Find all opportunity anchor tags by their CSS class
+    link_pat = re.compile(
+        r'<a\s[^>]*class="[^"]*ukri-funding-opp__link[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
         re.DOTALL | re.IGNORECASE,
     )
 
-    if not article_blocks:
-        # Fallback: extract h3 anchor + surrounding context (works on UKRI's current layout)
-        # Find h3 links that point to /opportunity/ slugs
-        h3_pattern = re.compile(
-            r'<h3[^>]*>\s*<a\s+href="(https?://www\.ukri\.org/opportunity/[^"]+)"[^>]*>'
-            r'(.*?)</a>',
-            re.DOTALL | re.IGNORECASE,
-        )
-        # Use a sliding window approach: find each h3 + next ~2000 chars as context
-        positions = [(m.start(), m.group(1), m.group(2)) for m in h3_pattern.finditer(html_text)]
-        for i, (pos, url_raw, title_raw) in enumerate(positions):
-            end = positions[i + 1][0] if i + 1 < len(positions) else pos + 2500
-            block = html_text[pos:end]
-            opps.append(_extract_fields(url_raw, title_raw, block))
-        return [o for o in opps if o]
+    positions = [(m.start(), m.group(1), m.group(2)) for m in link_pat.finditer(html_text)]
 
-    for block in article_blocks:
-        # Extract h3 link
-        m_link = re.search(
-            r'<h3[^>]*>\s*<a\s+href="([^"]+)"[^>]*>(.*?)</a>',
-            block, re.DOTALL | re.IGNORECASE
-        )
-        if not m_link:
-            continue
-        url_raw   = m_link.group(1)
-        title_raw = m_link.group(2)
-        opps.append(_extract_fields(url_raw, title_raw, block))
+    for i, (pos, url_raw, title_raw) in enumerate(positions):
+        # Slice from this link to the next one (or 4000 chars)
+        end = positions[i + 1][0] if i + 1 < len(positions) else pos + 4000
+        block = html_text[pos:end]
+        opp = _extract_fields(url_raw, title_raw, block)
+        if opp:
+            opps.append(opp)
 
-    return [o for o in opps if o]
+    return opps
 
 
 def _strip_tags(s: str) -> str:
@@ -196,47 +178,46 @@ def _strip_tags(s: str) -> str:
 
 
 def _extract_fields(url_raw: str, title_raw: str, block: str) -> dict | None:
-    """Extract structured fields from an opportunity HTML block."""
+    """
+    Extract structured fields from a UKRI opportunity HTML block.
+
+    The actual HTML uses a <dl class="govuk-table opportunity__summary"> table
+    with <dt> (field label) / <dd> (field value) pairs, e.g.:
+      <dt ...>Closing date: </dt>
+      <dd ...>8 September 2026 4:00pm UK time</dd>
+    """
     title = _strip_tags(title_raw).strip()
     if not title:
         return None
 
-    # Normalise URL
     portal_url = url_raw.strip()
     if portal_url.startswith("/"):
         portal_url = "https://www.ukri.org" + portal_url
 
-    # Strip block to plain text for easier field extraction
-    plain = _strip_tags(block)
-
-    # Closing date
-    m_close = re.search(
-        r'[Cc]losing date[:\s]+([^\n|]+?(?:\d{4}(?:\s+\d+:\d+[ap]m[^|]*)?|open\s*-\s*no\s+closing\s+date))',
-        plain, re.IGNORECASE
+    # ---- Parse <dt>/<dd> pairs from the govuk-table dl ----
+    dt_dd_pat = re.compile(
+        r'<dt[^>]*>(.*?)</dt>\s*<dd[^>]*>(.*?)</dd>',
+        re.DOTALL | re.IGNORECASE,
     )
-    deadline_raw = m_close.group(1).strip() if m_close else None
+    fields: dict[str, str] = {}
+    for m in dt_dd_pat.finditer(block):
+        key = _strip_tags(m.group(1)).strip().rstrip(":").strip().lower()
+        val = _strip_tags(m.group(2)).strip()
+        if key:
+            fields[key] = val
+
+    # ---- Deadline ----
+    deadline_raw = fields.get("closing date") or fields.get("close date")
     if deadline_raw and "no closing date" in deadline_raw.lower():
         deadline_raw = None
     deadline_iso = _parse_date(deadline_raw)
 
-    # Opening date
-    m_open = re.search(
-        r'Opening date[:\s]+([^\n|]+?\d{4}(?:\s+\d+:\d+[ap]m[^|]*)?)',
-        plain, re.IGNORECASE
-    )
-    open_date = _parse_date(m_open.group(1).strip() if m_open else None)
+    # ---- Opening / publication dates ----
+    open_date = _parse_date(fields.get("opening date"))
+    pub_date  = _parse_date(fields.get("publication date"))
 
-    # Publication date
-    m_pub = re.search(
-        r'Publication date[:\s]+([^\n|]+?\d{4})',
-        plain, re.IGNORECASE
-    )
-    pub_date = _parse_date(m_pub.group(1).strip() if m_pub else None)
-
-    # Funders — capture council names after "Funders:"
-    m_funders = re.search(r'Funders?[:\s]+(.*?)(?:Co-funders?|Funding type|Opportunity status|$)',
-                           plain, re.IGNORECASE | re.DOTALL)
-    funders_text = m_funders.group(1).strip() if m_funders else ""
+    # ---- Funder ----
+    funders_text = fields.get("funders", "") or fields.get("funder", "")
     council_key = ""
     for key in COUNCIL_FUNDER_MAP:
         if key.lower() in funders_text.lower():
@@ -245,46 +226,43 @@ def _extract_fields(url_raw: str, title_raw: str, block: str) -> dict | None:
     funder = COUNCIL_FUNDER_MAP.get(council_key, "UK Research and Innovation")
     thematic_sectors = COUNCIL_SECTOR_MAP.get(council_key, ["Research & Innovation"])
 
-    # Funding amounts
-    m_total = re.search(r'Total fund[:\s]+(£[\d,\.]+\s*(?:million)?)', plain, re.IGNORECASE)
-    m_max   = re.search(r'Maximum award[:\s]+(£[\d,\.]+\s*(?:million)?)', plain, re.IGNORECASE)
-    m_range = re.search(r'Award range[:\s]+(£[\d,\.]+)\s*[-–]\s*(£[\d,\.]+)', plain, re.IGNORECASE)
-
-    funding_max = None
-    funding_min = None
-    if m_total:
-        funding_max = _parse_amount(m_total.group(1))
-    elif m_max:
-        funding_max = _parse_amount(m_max.group(1))
-    if m_range:
-        funding_min = _parse_amount(m_range.group(1))
-        if not funding_max:
-            funding_max = _parse_amount(m_range.group(2))
-
-    # Description: short blurb before "Opportunity status:"
-    m_desc = re.search(
-        r'</h3>\s*(.*?)(?:Opportunity status|Publication date)',
-        block, re.DOTALL | re.IGNORECASE
+    # ---- Funding amounts ----
+    funding_max = _parse_amount(
+        fields.get("total fund") or fields.get("maximum award")
     )
-    description = _strip_tags(m_desc.group(1)).strip() if m_desc else None
+    funding_min = None
+    range_val = fields.get("award range", "")
+    if range_val:
+        m_range = re.search(r'([\d,£]+)\s*[-–]\s*([\d,£]+)', range_val)
+        if m_range:
+            funding_min = _parse_amount(m_range.group(1))
+            if not funding_max:
+                funding_max = _parse_amount(m_range.group(2))
 
-    slug = re.search(r'/opportunity/([^/]+)/?$', portal_url)
+    # ---- Description: text in entry-content div ----
+    m_desc = re.search(
+        r'<div[^>]*class="[^"]*entry-content[^"]*"[^>]*>(.*?)</div>',
+        block, re.DOTALL | re.IGNORECASE,
+    )
+    description = _strip_tags(m_desc.group(1)).strip()[:500] if m_desc else None
+
+    slug = re.search(r'/opportunity/([^/?#]+)/?', portal_url)
     opp_id = slug.group(1) if slug else portal_url
 
     return {
-        "url":          portal_url,
-        "title":        title,
-        "funder":       funder,
-        "council_key":  council_key,
-        "description":  description,
-        "deadline_iso": deadline_iso,
-        "deadline_raw": deadline_raw,
-        "open_date":    open_date,
-        "pub_date":     pub_date,
-        "funding_min":  funding_min,
-        "funding_max":  funding_max,
+        "url":              portal_url,
+        "title":            title,
+        "funder":           funder,
+        "council_key":      council_key,
+        "description":      description,
+        "deadline_iso":     deadline_iso,
+        "deadline_raw":     deadline_raw,
+        "open_date":        open_date,
+        "pub_date":         pub_date,
+        "funding_min":      funding_min,
+        "funding_max":      funding_max,
         "thematic_sectors": thematic_sectors,
-        "opp_id":       opp_id,
+        "opp_id":           opp_id,
     }
 
 

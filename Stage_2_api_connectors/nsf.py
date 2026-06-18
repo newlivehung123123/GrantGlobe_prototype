@@ -127,18 +127,19 @@ def _fetch_nsf_solicitations() -> list[dict]:
     awards: list[dict] = []
     offset = 1
     rpp = 100
-    max_records = 500  # cap to avoid pulling too many
+    max_records = 500  # cap; NSF DB has ~10k recent awards
 
     while offset <= max_records:
         try:
             resp = session.get(
                 "https://api.nsf.gov/services/v1/awards.json",
                 params={
-                    "activeAwardProject": "true",
-                    "dateStart": "01/01/2025",
+                    "dateStart": "01/01/2024",  # awards started since Jan 2024
                     "printFields": FIELDS,
                     "offset": offset,
                     "rpp": rpp,
+                    "sortField": "startDate",
+                    "sortOrder": "desc",
                 },
                 timeout=30,
             )
@@ -147,10 +148,13 @@ def _fetch_nsf_solicitations() -> list[dict]:
             batch = data.get("response", {}).get("award", [])
             if not batch:
                 break
+            # Filter to currently active awards only (expDate in future)
+            today_str = datetime.date.today().strftime("%m/%d/%Y")
+            batch = [a for a in batch if a.get("activeAwd") == "true"]
             awards.extend(batch)
             total = int(data.get("response", {}).get("totalCount", 0) or 0)
-            print(f"  NSF Awards API: fetched {len(awards)}/{total if total else '?'} …")
-            if len(batch) < rpp or (total and offset + rpp > total):
+            print(f"  NSF Awards API: fetched {len(awards)}/{min(total, max_records) if total else '?'} active …")
+            if len(data.get("response", {}).get("award", [])) < rpp:
                 break
             offset += rpp
             time.sleep(0.3)

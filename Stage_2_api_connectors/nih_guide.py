@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-NIH Guide to Grants connector — Stage 2 API source.
+NIH connector — Stage 2 API source.
 
-Fetches open NIH funding opportunities from the NIH Guide to Grants and
-Contracts search API. No API key required.
+Uses the NIH RePORTER API v2 (api.reporter.nih.gov) to fetch currently
+active NIH-funded projects. The NIH Guide RSS feeds block server IPs (403);
+RePORTER is the public alternative that works.
 
-API endpoint:
-  https://grants.nih.gov/funding/searchGuide/search-results-data.cfm
+API docs: https://api.reporter.nih.gov/
 
 Usage (on the VPS):
     export $(grep DATABASE_URL /opt/grantglobe/Stage_3_LLM_extraction/.env | xargs)
@@ -20,6 +20,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 
@@ -30,10 +31,7 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-SEARCH_URL = "https://grants.nih.gov/funding/searchGuide/search-results-data.cfm"
-DETAIL_BASE = "https://grants.nih.gov/grants/guide/rfa-files/"
-GUIDE_BASE = "https://grants.nih.gov"
-NIH_RSS_BASE = "https://grants.nih.gov/rss/"
+REPORTER_URL = "https://api.reporter.nih.gov/v2/projects/search"
 
 ACTIVITY_CODE_SECTORS: dict[str, list[str]] = {
     "R01": ["Health Sciences", "Research & Innovation"],
@@ -53,6 +51,24 @@ ACTIVITY_CODE_SECTORS: dict[str, list[str]] = {
     "U01": ["Health Sciences", "Research & Innovation"],
     "DP1": ["Health Sciences", "Research & Innovation"],
     "DP2": ["Health Sciences", "Research & Innovation"],
+}
+
+AGENCY_FUNDER_MAP: dict[str, str] = {
+    "NCI":   "National Cancer Institute",
+    "NHLBI": "National Heart, Lung, and Blood Institute",
+    "NIAID": "National Institute of Allergy and Infectious Diseases",
+    "NIMH":  "National Institute of Mental Health",
+    "NIDA":  "National Institute on Drug Abuse",
+    "NIA":   "National Institute on Aging",
+    "NIBIB": "National Institute of Biomedical Imaging and Bioengineering",
+    "NIGMS": "National Institute of General Medical Sciences",
+    "NIMHD": "National Institute on Minority Health and Health Disparities",
+    "NHGRI": "National Human Genome Research Institute",
+    "NIDDK": "National Institute of Diabetes and Digestive and Kidney Diseases",
+    "NEI":   "National Eye Institute",
+    "NIDCD": "National Institute on Deafness and Other Communication Disorders",
+    "NINDS": "National Institute of Neurological Disorders and Stroke",
+    "NICHD": "Eunice Kennedy Shriver National Institute of Child Health and Human Development",
 }
 
 
@@ -86,7 +102,10 @@ def _parse_date(date_str: str | None) -> str | None:
     if not date_str:
         return None
     date_str = str(date_str).strip()
-    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%b %d, %Y", "%B %d, %Y"):
+    # Handle ISO 8601 with time component
+    if "T" in date_str:
+        date_str = date_str.split("T")[0]
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%b %d, %Y", "%B %d, %Y"):
         try:
             return datetime.datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
         except ValueError:
@@ -96,15 +115,15 @@ def _parse_date(date_str: str | None) -> str | None:
 
 def _fetch_nih_opportunities() -> list[dict]:
     """
-    Fetch open NIH funding opportunities via the NIH Guide RSS feeds.
-    NIH publishes separate RSS feeds for RFAs (Requests for Applications)
-    and PAs (Program Announcements) — both are open funding opportunities.
-    """
-    import xml.etree.ElementTree as ET
+    Fetch active NIH-funded projects via the NIH RePORTER API v2.
 
+    Filters: fiscal years 2024-2026 AND project end date in the future
+    (i.e., award is still active). Returns up to 2000 records.
+    """
     session = requests.Session()
     session.headers.update({
-        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -112,94 +131,102 @@ def _fetch_nih_opportunities() -> list[dict]:
         ),
     })
 
-    rss_feeds = [
-        ("RFA", "https://grants.nih.gov/rss/rss_active_rfas.cfm"),
-        ("PA",  "https://grants.nih.gov/rss/rss_active_pas.cfm"),
+    INCLUDE_FIELDS = [
+        "ProjectTitle", "ProjectNum", "ProjectStartDate", "ProjectEndDate",
+        "AbstractText", "AgencyCode", "FundingMechanism",
+        "TotalCost", "DirectCostAmt", "ProjectSerialNum",
     ]
 
-    all_opps: list[dict] = []
+    all_projects: list[dict] = []
+    offset = 0
+    limit = 500
+    max_records = 2000
 
-    for feed_type, feed_url in rss_feeds:
+    while offset < max_records:
+        payload = {
+            "criteria": {
+                "fiscal_years": [2024, 2025, 2026],
+                "project_end_date": {
+                    "from_date": datetime.date.today().strftime("%Y-%m-%d"),
+                },
+            },
+            "include_fields": INCLUDE_FIELDS,
+            "offset": offset,
+            "limit": limit,
+            "sort_field": "project_start_date",
+            "sort_order": "desc",
+        }
         try:
-            resp = session.get(feed_url, timeout=30)
+            resp = session.post(REPORTER_URL, json=payload, timeout=30)
             resp.raise_for_status()
-            root = ET.fromstring(resp.content)
-            items = root.findall(".//item")
-            print(f"  NIH {feed_type} RSS: {len(items)} items.")
-            for item in items:
-                title = (item.findtext("title") or "").strip()
-                link = (item.findtext("link") or "").strip()
-                pub_date = (item.findtext("pubDate") or "").strip()
-                desc = (item.findtext("description") or "").strip()
-                # Extract notice ID from link (e.g. RFA-CA-24-001)
-                notice_id = ""
-                if link:
-                    import re
-                    m = re.search(r"((?:RFA|PA[SR]?|NOT|OD)-[\w-]+)", link, re.IGNORECASE)
-                    if m:
-                        notice_id = m.group(1).upper()
-                if title and link:
-                    all_opps.append({
-                        "title": title,
-                        "link": link,
-                        "pubDate": pub_date,
-                        "description": desc,
-                        "notice_id": notice_id,
-                        "feed_type": feed_type,
-                    })
+            data = resp.json()
+            results = data.get("results", [])
+            if not results:
+                break
+            all_projects.extend(results)
+            total = int(data.get("meta", {}).get("total", 0) or 0)
+            cap = min(total, max_records) if total else "?"
+            print(f"  NIH RePORTER: fetched {len(all_projects)}/{cap} …")
+            if len(results) < limit:
+                break
+            offset += limit
+            time.sleep(0.3)
         except Exception as e:
-            print(f"  WARNING: NIH {feed_type} RSS feed failed: {e}")
+            print(f"  NIH RePORTER failed at offset {offset}: {e}")
+            break
 
-    print(f"  NIH total: {len(all_opps)} opportunities from RSS feeds.")
-    return all_opps
+    print(f"  NIH: {len(all_projects)} active project records retrieved.")
+    return all_projects
 
 
-def _map_opportunity(opp: dict) -> dict | None:
-    """Map one NIH RSS item to a GrantGlobe grant dict."""
-    import re
-
-    title = (opp.get("title") or "").strip()
-    if not title:
+def _map_opportunity(project: dict) -> dict | None:
+    """Map one NIH RePORTER project to a GrantGlobe grant dict."""
+    title = (project.get("ProjectTitle") or "").strip()
+    proj_num = (project.get("ProjectNum") or "").strip()
+    if not title or not proj_num:
         return None
 
-    portal_url = (opp.get("link") or "").strip() or None
-    notice_id = (opp.get("notice_id") or "").strip()
+    serial = project.get("ProjectSerialNum") or proj_num
+    portal_url = f"https://reporter.nih.gov/project-details/{serial}"
 
-    # RSS pubDate is the release date; NIH doesn't include deadline in RSS.
-    # Deadline is left null — the export filter keeps null-deadline grants.
-    open_date = _parse_date(opp.get("pubDate"))
+    open_date    = _parse_date(project.get("ProjectStartDate"))
+    deadline_iso = _parse_date(project.get("ProjectEndDate"))
 
-    # Infer activity code from notice_id or title
-    activity_code = ""
-    if notice_id:
-        m = re.match(r"(?:RFA|PA[SR]?)-([A-Z]{2})-", notice_id)
-        if m:
-            activity_code = ""  # institute code, not activity code
-    # Try to extract from title (e.g. "R01 Research Project Grant")
-    m2 = re.search(r'\b([RTKUFPDCS]\d{2})\b', title)
-    if m2:
-        activity_code = m2.group(1).upper()
+    agency_code = (project.get("AgencyCode") or "NIH").strip()
+    funder = AGENCY_FUNDER_MAP.get(agency_code,
+                                   f"NIH – {agency_code}" if agency_code != "NIH" else "National Institutes of Health")
 
-    funder = "National Institutes of Health"
+    # Activity code from project number prefix (e.g. "R01CA123456" → "R01")
+    m_code = re.match(r'^([A-Z]\d{2})', proj_num)
+    activity_code = m_code.group(1) if m_code else ""
     thematic_sectors = ACTIVITY_CODE_SECTORS.get(
         activity_code, ["Health Sciences", "Research & Innovation"]
     )
     grant_type = "Fellowship" if activity_code.startswith(("F", "K", "T")) else "Research Grant"
 
+    total_cost = project.get("TotalCost") or project.get("DirectCostAmt")
+    try:
+        funding_max = float(total_cost) if total_cost else None
+    except (ValueError, TypeError):
+        funding_max = None
+
+    abstract = (project.get("AbstractText") or "").strip()
+    description = abstract[:500] if abstract else None
+
     return {
         "grant_title":              title,
         "funder_name":              funder,
         "source_url":               portal_url,
-        "application_portal_url":   portal_url,
-        "description":              opp.get("description") or None,
-        "application_deadline":     None,   # not in RSS; kept for review
-        "application_deadline_raw": None,
+        "application_portal_url":   "https://grants.nih.gov/funding/searchGuide/search-results-data.cfm",
+        "description":              description,
+        "application_deadline":     deadline_iso,
+        "application_deadline_raw": project.get("ProjectEndDate"),
         "grant_opening_date":       open_date,
         "current_status":           "Open",
         "source_language":          "en",
         "funding_amount_min":       None,
-        "funding_amount_max":       None,
-        "currency":                 None,
+        "funding_amount_max":       funding_max,
+        "currency":                 "USD" if funding_max else None,
         "thematic_sectors":         thematic_sectors,
         "grant_types":              [grant_type],
         "applicant_base_regions":   ["North America"],
@@ -213,7 +240,7 @@ def _map_opportunity(opp: dict) -> dict | None:
         "requires_review":          False,
         "crawl_date":               datetime.date.today().isoformat(),
         "content_hash":             hashlib.sha256(
-            f"{notice_id}|{title}|{portal_url}".encode()
+            f"{proj_num}|{title}|{deadline_iso}".encode()
         ).hexdigest(),
     }
 
@@ -246,20 +273,21 @@ def _upsert_grant(cur, g: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="NIH Guide → GrantGlobe ingestor")
+    parser = argparse.ArgumentParser(description="NIH RePORTER → GrantGlobe ingestor")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    print("Fetching NIH funding opportunities …")
-    opps = _fetch_nih_opportunities()
-    print(f"  {len(opps)} raw records retrieved.")
+    print("Fetching NIH active funded projects …")
+    projects = _fetch_nih_opportunities()
+    print(f"  {len(projects)} raw records retrieved.")
 
     today = datetime.date.today()
     mapped = []
-    for o in opps:
-        g = _map_opportunity(o)
+    for p in projects:
+        g = _map_opportunity(p)
         if not g or not g.get("source_url") or not g.get("grant_title"):
             continue
+        # Keep projects whose award end date is in the future (or unknown)
         if g["application_deadline"]:
             try:
                 if datetime.date.fromisoformat(g["application_deadline"]) < today:
