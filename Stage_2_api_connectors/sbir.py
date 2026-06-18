@@ -35,8 +35,11 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# SBIR.gov open solicitations search — public JSON endpoint
-# docs: https://www.sbir.gov/sites/default/files/SBIR_STTR_API.pdf
+# NOTE (2026-06-18): SBIR.gov migrated platforms. The old Drupal search
+# endpoint (sbirsearch/solicit/all/) and api.sbir.gov subdomain are both
+# gone (404 / DNS failure). SBIR/STTR solicitations are covered by the
+# grants.gov connector, which scrapes all open federal opportunities.
+# This connector is kept as a no-op stub pending SBIR.gov API restoration.
 SBIR_API_URL = "https://www.sbir.gov/sbirsearch/solicit/all/"
 
 AGENCY_SECTORS: dict[str, list[str]] = {
@@ -114,10 +117,16 @@ def _fetch_sbir_solicitations() -> list[dict]:
     """
     Fetch open SBIR/STTR solicitations from api.sbir.gov.
 
-    The API returns a list of open solicitations with fields such as:
-      solicitation_title, agency, program, solicitation_number,
-      open_date, close_date, description, url, solicitation_year
+    NOTE: SBIR.gov migrated platforms in 2026. The old Drupal API at
+    sbirsearch/solicit/all/ and api.sbir.gov are both defunct. This
+    function returns an empty list until the new API is identified.
+    SBIR/STTR solicitations are meanwhile covered by the grants.gov connector.
     """
+    print("  SBIR: source API is currently offline (sbir.gov platform migration).")
+    print("  SBIR: SBIR/STTR solicitations are covered by the grants.gov connector.")
+    return []
+
+    # ── dead code below — retained for reference when new API is known ──────
     session = requests.Session()
     session.headers.update({
         "Accept": "application/json",
