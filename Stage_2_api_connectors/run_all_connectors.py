@@ -39,6 +39,7 @@ CONNECTORS = [
     ("Volkswagen Foundation (DE)", CONNECTORS_DIR / "germany_volkswagen.py"),
     ("DFG Germany",            CONNECTORS_DIR / "germany_dfg.py"),
     ("NCN Poland",             CONNECTORS_DIR / "poland_ncn.py"),
+    ("Research Ireland",       CONNECTORS_DIR / "ireland_ri.py"),
     # ── North America ────────────────────────────────────────────────────────
     ("NSERC Canada",           CONNECTORS_DIR / "canada_nserc.py"),
     # ── Pacific ──────────────────────────────────────────────────────────────
