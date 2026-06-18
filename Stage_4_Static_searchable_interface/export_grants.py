@@ -122,6 +122,19 @@ WHERE
         OR (g.requires_review = false AND g.review_status = 'pending')
     )
 {closed_clause}
+    -- English-only: exclude grants in other languages.
+    -- source_language is null for records where language was not detected
+    -- (treat as English to avoid excluding legitimate records).
+    AND (g.source_language IS NULL OR g.source_language ILIKE 'English' OR g.source_language = 'en')
+
+    -- Stale deadline filter: exclude grants whose deadline has passed but
+    -- whose status was never updated from Open/Upcoming.  Rolling grants
+    -- have no fixed deadline so are always kept.
+    AND NOT (
+        g.application_deadline < CURRENT_DATE
+        AND g.current_status IN ('Open', 'Upcoming')
+    )
+
     -- Quality filter: exclude records from listing pages where no specific
     -- grant URL was captured.  A record is treated as a listing-page extract
     -- when application_portal_url is NULL and its source_url was shared by
