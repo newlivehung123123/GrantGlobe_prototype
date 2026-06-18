@@ -40,6 +40,7 @@ CONNECTORS = [
     ("DFG Germany",            CONNECTORS_DIR / "germany_dfg.py"),
     ("NCN Poland",             CONNECTORS_DIR / "poland_ncn.py"),
     ("Research Ireland",       CONNECTORS_DIR / "ireland_ri.py"),
+    ("Spain AEI",              CONNECTORS_DIR / "spain_aei.py"),
     # ── North America ────────────────────────────────────────────────────────
     ("NSERC Canada",           CONNECTORS_DIR / "canada_nserc.py"),
     # ── Pacific ──────────────────────────────────────────────────────────────
