@@ -359,7 +359,7 @@ def _purge_contaminated(cur: psycopg2.extensions.cursor, dry_run: bool) -> int:
                     UPDATE grants
                     SET review_status = 'rejected',
                         requires_review = false
-                    WHERE id = ANY(%s)
+                    WHERE id = ANY(%s::uuid[])
                     """,
                     (ids,),
                 )
