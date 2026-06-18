@@ -24,11 +24,26 @@ CONNECTORS_DIR = Path(__file__).parent
 REPO_ROOT = CONNECTORS_DIR.parent
 
 CONNECTORS = [
-    ("EU Funding Portal",  CONNECTORS_DIR / "eu_funding_portal.py"),
-    ("Grants.gov (US)",    CONNECTORS_DIR / "grants_gov.py"),
-    ("NIH Guide",          CONNECTORS_DIR / "nih_guide.py"),
-    ("NSF",                CONNECTORS_DIR / "nsf.py"),
-    ("UKRI",               CONNECTORS_DIR / "ukri.py"),
+    # ── US ──────────────────────────────────────────────────────────────────
+    ("Grants.gov (US)",        CONNECTORS_DIR / "grants_gov.py"),
+    ("NIH Guide",              CONNECTORS_DIR / "nih_guide.py"),
+    ("NSF",                    CONNECTORS_DIR / "nsf.py"),
+    ("SBIR",                   CONNECTORS_DIR / "sbir.py"),
+    # ── EU / Multilateral ────────────────────────────────────────────────────
+    ("EU Funding Portal",      CONNECTORS_DIR / "eu_funding_portal.py"),
+    # ── UK ───────────────────────────────────────────────────────────────────
+    ("UKRI",                   CONNECTORS_DIR / "ukri.py"),
+    # ── Europe (individual countries) ────────────────────────────────────────
+    ("ANR France",             CONNECTORS_DIR / "france_anr.py"),
+    ("Research Council Finland (AKA)", CONNECTORS_DIR / "finland_aka.py"),
+    ("Volkswagen Foundation (DE)", CONNECTORS_DIR / "germany_volkswagen.py"),
+    # ── North America ────────────────────────────────────────────────────────
+    ("NSERC Canada",           CONNECTORS_DIR / "canada_nserc.py"),
+    # ── Pacific ──────────────────────────────────────────────────────────────
+    ("Australia Grants",       CONNECTORS_DIR / "australia.py"),
+    # ── Other ────────────────────────────────────────────────────────────────
+    ("NWO Netherlands",        CONNECTORS_DIR / "nwo.py"),
+    ("Research Council Norway",CONNECTORS_DIR / "norway.py"),
 ]
 
 
