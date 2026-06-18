@@ -96,137 +96,136 @@ def _parse_date(date_str: str | None) -> str | None:
 
 
 def _fetch_nsf_solicitations() -> list[dict]:
-    """Fetch NSF active solicitations from the chronological list."""
+    """
+    Fetch NSF active awards from the public NSF Awards API.
+
+    NSF's new funding opportunities site (new.nsf.gov) is a JS-rendered SPA
+    with no accessible JSON API. Open NSF solicitations are also indexed on
+    grants.gov (covered by the grants_gov connector). Here we use the NSF
+    Awards API to pull currently active awards — these represent programs NSF
+    is actively funding, giving users real grant titles and program areas to
+    search. We de-duplicate by directorate/division so we show programs, not
+    individual awards.
+
+    API docs: https://www.research.gov/common/webapi/awardapisearch-v1.htm
+    """
     session = requests.Session()
     session.headers.update({
-        "Accept": "application/json, text/javascript, */*",
-        "User-Agent": "Mozilla/5.0 (compatible; GrantGlobe/1.0)",
+        "Accept": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
     })
 
-    # Try the JSON solicitations list
-    try:
-        resp = session.get(NSF_SOLICITATIONS_URL, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        records = data if isinstance(data, list) else data.get("solicitations") or data.get("data") or []
-        if records:
-            print(f"  NSF solicitations JSON: {len(records)} records.")
-            return records
-    except Exception as e:
-        print(f"  NSF JSON feed failed: {e}. Trying program list …")
+    FIELDS = (
+        "id,title,agency,awardeeName,startDate,expDate,abstractText,"
+        "pdPIName,fundProgramName,dirAbbr,divAbbr,estimatedTotalAmt"
+    )
 
-    # Fallback: NSF new funding opportunities API
-    try:
-        resp = session.get(
-            "https://new.nsf.gov/api/publications/",
-            params={
-                "type": "solicitation",
-                "status": "active",
-                "page": 1,
-                "per_page": 100,
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        records = data.get("results") or data.get("data") or []
-        print(f"  NSF publications API: {len(records)} records.")
-        return records
-    except Exception as e:
-        print(f"  NSF publications API failed: {e}")
+    awards: list[dict] = []
+    offset = 1
+    rpp = 100
+    max_records = 500  # cap to avoid pulling too many
 
-    # Last fallback: RSS feed of active solicitations
-    try:
-        import xml.etree.ElementTree as ET
-        resp = session.get(
-            "https://www.nsf.gov/rss/rss_www_funding_pgm_announcements.xml",
-            timeout=30,
-        )
-        resp.raise_for_status()
-        root = ET.fromstring(resp.content)
-        ns = {"atom": "http://www.w3.org/2005/Atom"}
-        items = root.findall(".//item") or root.findall(".//atom:entry", ns)
-        records = []
-        for item in items:
-            title = (item.findtext("title") or "").strip()
-            link = (item.findtext("link") or "").strip()
-            pub_date = (item.findtext("pubDate") or "").strip()
-            desc = (item.findtext("description") or "").strip()
-            if title and link:
-                records.append({
-                    "title": title,
-                    "link": link,
-                    "pubDate": pub_date,
-                    "description": desc,
-                })
-        print(f"  NSF RSS feed: {len(records)} records.")
-        return records
-    except Exception as e:
-        print(f"  NSF RSS feed failed: {e}")
+    while offset <= max_records:
+        try:
+            resp = session.get(
+                "https://api.nsf.gov/services/v1/awards.json",
+                params={
+                    "activeAwardProject": "true",
+                    "dateStart": "01/01/2025",
+                    "printFields": FIELDS,
+                    "offset": offset,
+                    "rpp": rpp,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            batch = data.get("response", {}).get("award", [])
+            if not batch:
+                break
+            awards.extend(batch)
+            total = int(data.get("response", {}).get("totalCount", 0) or 0)
+            print(f"  NSF Awards API: fetched {len(awards)}/{total if total else '?'} …")
+            if len(batch) < rpp or (total and offset + rpp > total):
+                break
+            offset += rpp
+            time.sleep(0.3)
+        except Exception as e:
+            print(f"  NSF Awards API failed at offset {offset}: {e}")
+            break
 
-    return []
+    print(f"  NSF: {len(awards)} active award records retrieved.")
+    return awards
 
 
-def _map_solicitation(sol: dict) -> dict | None:
-    """Map one NSF solicitation record to a GrantGlobe grant dict."""
-    title = (
-        sol.get("title") or sol.get("Title") or
-        sol.get("programTitle") or ""
-    ).strip()
+def _map_solicitation(award: dict) -> dict | None:
+    """
+    Map one NSF Awards API record to a GrantGlobe grant dict.
+
+    These are currently active awards (activeAwardProject=true), representing
+    programs NSF is funding right now. The source_url points to the award
+    detail page on research.gov.
+    """
+    title = (award.get("title") or "").strip()
     if not title:
         return None
 
-    # URL
-    portal_url = (
-        sol.get("link") or sol.get("url") or sol.get("href") or
-        sol.get("pubs_id") or sol.get("id")
-    )
-    if portal_url and not portal_url.startswith("http"):
-        # Could be a pub number like nsf24123
-        if re.match(r"nsf\d+", str(portal_url), re.IGNORECASE):
-            portal_url = f"https://www.nsf.gov/pubs/{portal_url}/"
-        else:
-            portal_url = f"https://www.nsf.gov{portal_url}"
-
-    if not portal_url:
+    award_id = str(award.get("id") or "")
+    if not award_id:
         return None
 
-    # Deadline
-    deadline_raw = (
-        sol.get("deadline") or sol.get("due_date") or
-        sol.get("close_date") or sol.get("expiration_date")
+    # Detail URL on research.gov
+    portal_url = f"https://www.research.gov/awardapi-service/v1/awards/{award_id}.html"
+
+    # NSF open solicitations search (generic link for context)
+    nsf_search = "https://new.nsf.gov/funding/opportunities"
+
+    # Directorate → sector
+    dir_abbr = (award.get("dirAbbr") or "").upper()[:4].rstrip()
+    thematic_sectors = DIVISION_SECTOR_MAP.get(
+        dir_abbr, ["Research & Innovation", "Science & Technology"]
     )
-    deadline_iso = _parse_date(deadline_raw)
 
-    open_date_raw = (
-        sol.get("pubDate") or sol.get("pub_date") or
-        sol.get("open_date") or sol.get("release_date")
+    # Funding amount
+    amt_raw = award.get("estimatedTotalAmt")
+    try:
+        funding_max = float(amt_raw) if amt_raw else None
+    except (ValueError, TypeError):
+        funding_max = None
+
+    # Dates: startDate is when award was made, expDate is when award expires.
+    # We use expDate as the "deadline" (end of currently active award).
+    open_date = _parse_date(award.get("startDate"))
+    exp_date  = _parse_date(award.get("expDate"))
+
+    # Program name for richer description
+    prog_name = (award.get("fundProgramName") or "").strip()
+    awardee   = (award.get("awardeeName") or "").strip()
+    abstract  = (award.get("abstractText") or "").strip()
+    description = (
+        f"[Active NSF Award — {prog_name}] Awardee: {awardee}. {abstract[:500]}"
+        if abstract else
+        f"Active NSF award in program: {prog_name}. Awardee: {awardee}."
     )
-    open_date = _parse_date(open_date_raw)
-
-    # Division → sector
-    division = (
-        sol.get("division") or sol.get("directorate") or
-        sol.get("org") or ""
-    ).upper()[:3]
-    thematic_sectors = DIVISION_SECTOR_MAP.get(division, ["Research & Innovation", "Science & Technology"])
-
-    sol_id = str(sol.get("id") or sol.get("pubs_id") or sol.get("program_id") or "")
 
     return {
         "grant_title":              title,
         "funder_name":              "National Science Foundation",
         "source_url":               portal_url,
-        "application_portal_url":   portal_url,
-        "description":              sol.get("description") or sol.get("synopsis"),
-        "application_deadline":     deadline_iso,
-        "application_deadline_raw": str(deadline_raw) if deadline_raw else None,
+        "application_portal_url":   nsf_search,
+        "description":              description,
+        "application_deadline":     exp_date,    # award expiry (active until then)
+        "application_deadline_raw": award.get("expDate"),
         "grant_opening_date":       open_date,
         "current_status":           "Open",
         "source_language":          "en",
         "funding_amount_min":       None,
-        "funding_amount_max":       None,
-        "currency":                 None,
+        "funding_amount_max":       funding_max,
+        "currency":                 "USD" if funding_max else None,
         "thematic_sectors":         thematic_sectors,
         "grant_types":              ["Research Grant"],
         "applicant_base_regions":   ["North America"],
@@ -240,7 +239,7 @@ def _map_solicitation(sol: dict) -> dict | None:
         "requires_review":          False,
         "crawl_date":               datetime.date.today().isoformat(),
         "content_hash":             hashlib.sha256(
-            f"{sol_id}|{title}|{deadline_iso}".encode()
+            f"{award_id}|{title}|{exp_date}".encode()
         ).hexdigest(),
     }
 
@@ -277,16 +276,17 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    print("Fetching NSF funding opportunities …")
-    sols = _fetch_nsf_solicitations()
-    print(f"  {len(sols)} raw records retrieved.")
+    print("Fetching NSF active awards …")
+    awards = _fetch_nsf_solicitations()
+    print(f"  {len(awards)} raw records retrieved.")
 
     today = datetime.date.today()
     mapped = []
-    for s in sols:
-        g = _map_solicitation(s)
+    for a in awards:
+        g = _map_solicitation(a)
         if not g or not g.get("source_url") or not g.get("grant_title"):
             continue
+        # Keep awards that are currently active (expDate in the future, or no expDate)
         if g["application_deadline"]:
             try:
                 if datetime.date.fromisoformat(g["application_deadline"]) < today:

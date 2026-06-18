@@ -33,6 +33,7 @@ import requests
 SEARCH_URL = "https://grants.nih.gov/funding/searchGuide/search-results-data.cfm"
 DETAIL_BASE = "https://grants.nih.gov/grants/guide/rfa-files/"
 GUIDE_BASE = "https://grants.nih.gov"
+NIH_RSS_BASE = "https://grants.nih.gov/rss/"
 
 ACTIVITY_CODE_SECTORS: dict[str, list[str]] = {
     "R01": ["Health Sciences", "Research & Innovation"],
@@ -94,112 +95,95 @@ def _parse_date(date_str: str | None) -> str | None:
 
 
 def _fetch_nih_opportunities() -> list[dict]:
-    """Fetch all open NIH funding opportunities."""
-    params = {
-        "Search_Type": "Activity",
-        "Activity_Code": "",
-        "Grants_Only": "N",
-        "Search_Text": "",
-        "curr_page": 1,
-        "num_records": 200,
-        "sort_field": "releasedate",
-        "sort_order": "desc",
-        "status": "open",
-    }
+    """
+    Fetch open NIH funding opportunities via the NIH Guide RSS feeds.
+    NIH publishes separate RSS feeds for RFAs (Requests for Applications)
+    and PAs (Program Announcements) — both are open funding opportunities.
+    """
+    import xml.etree.ElementTree as ET
+
     session = requests.Session()
     session.headers.update({
-        "Accept": "application/json, text/javascript, */*",
-        "User-Agent": "Mozilla/5.0 (compatible; GrantGlobe/1.0)",
+        "Accept": "application/rss+xml, application/xml, text/xml, */*",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
     })
 
+    rss_feeds = [
+        ("RFA", "https://grants.nih.gov/rss/rss_active_rfas.cfm"),
+        ("PA",  "https://grants.nih.gov/rss/rss_active_pas.cfm"),
+    ]
+
     all_opps: list[dict] = []
-    page = 1
 
-    while True:
-        params["curr_page"] = page
+    for feed_type, feed_url in rss_feeds:
         try:
-            resp = session.get(SEARCH_URL, params=params, timeout=30)
+            resp = session.get(feed_url, timeout=30)
             resp.raise_for_status()
-            data = resp.json()
+            root = ET.fromstring(resp.content)
+            items = root.findall(".//item")
+            print(f"  NIH {feed_type} RSS: {len(items)} items.")
+            for item in items:
+                title = (item.findtext("title") or "").strip()
+                link = (item.findtext("link") or "").strip()
+                pub_date = (item.findtext("pubDate") or "").strip()
+                desc = (item.findtext("description") or "").strip()
+                # Extract notice ID from link (e.g. RFA-CA-24-001)
+                notice_id = ""
+                if link:
+                    import re
+                    m = re.search(r"((?:RFA|PA[SR]?|NOT|OD)-[\w-]+)", link, re.IGNORECASE)
+                    if m:
+                        notice_id = m.group(1).upper()
+                if title and link:
+                    all_opps.append({
+                        "title": title,
+                        "link": link,
+                        "pubDate": pub_date,
+                        "description": desc,
+                        "notice_id": notice_id,
+                        "feed_type": feed_type,
+                    })
         except Exception as e:
-            print(f"  WARNING: NIH fetch failed at page {page}: {e}")
-            break
+            print(f"  WARNING: NIH {feed_type} RSS feed failed: {e}")
 
-        records = data.get("data") or data.get("records") or []
-        if not records:
-            # Try alternate key names
-            if isinstance(data, list):
-                records = data
-            else:
-                break
-
-        all_opps.extend(records)
-        total = data.get("total") or data.get("totalCount") or len(records)
-        print(f"  NIH: fetched {len(all_opps)} / {total} …")
-
-        if len(all_opps) >= int(total) or len(records) < params["num_records"]:
-            break
-
-        page += 1
-        time.sleep(0.5)
-
+    print(f"  NIH total: {len(all_opps)} opportunities from RSS feeds.")
     return all_opps
 
 
 def _map_opportunity(opp: dict) -> dict | None:
-    """Map one NIH guide record to a GrantGlobe grant dict."""
-    title = (
-        opp.get("title") or opp.get("Title") or
-        opp.get("opportunity_title") or ""
-    ).strip()
+    """Map one NIH RSS item to a GrantGlobe grant dict."""
+    import re
+
+    title = (opp.get("title") or "").strip()
     if not title:
         return None
 
-    notice_id = (
-        opp.get("noa_id") or opp.get("id") or
-        opp.get("notice_id") or opp.get("NoaId") or ""
-    ).strip()
+    portal_url = (opp.get("link") or "").strip() or None
+    notice_id = (opp.get("notice_id") or "").strip()
 
-    # Build URL from notice ID (e.g. PA-24-123 → grants.nih.gov/grants/guide/pa-files/PA-24-123.html)
-    portal_url = None
+    # RSS pubDate is the release date; NIH doesn't include deadline in RSS.
+    # Deadline is left null — the export filter keeps null-deadline grants.
+    open_date = _parse_date(opp.get("pubDate"))
+
+    # Infer activity code from notice_id or title
+    activity_code = ""
     if notice_id:
-        nid = notice_id.upper()
-        if nid.startswith("RFA"):
-            portal_url = f"https://grants.nih.gov/grants/guide/rfa-files/{nid}.html"
-        elif nid.startswith("PA") or nid.startswith("PAS") or nid.startswith("PAR"):
-            portal_url = f"https://grants.nih.gov/grants/guide/pa-files/{nid}.html"
-        elif nid.startswith("NOT"):
-            portal_url = f"https://grants.nih.gov/grants/guide/notice-files/{nid}.html"
-        else:
-            portal_url = f"https://grants.nih.gov/grants/guide/pa-files/{nid}.html"
+        m = re.match(r"(?:RFA|PA[SR]?)-([A-Z]{2})-", notice_id)
+        if m:
+            activity_code = ""  # institute code, not activity code
+    # Try to extract from title (e.g. "R01 Research Project Grant")
+    m2 = re.search(r'\b([RTKUFPDCS]\d{2})\b', title)
+    if m2:
+        activity_code = m2.group(1).upper()
 
-    deadline_raw = (
-        opp.get("expiration_date") or opp.get("ExpirationDate") or
-        opp.get("close_date") or opp.get("deadline")
-    )
-    deadline_iso = _parse_date(deadline_raw)
-
-    open_date_raw = (
-        opp.get("release_date") or opp.get("ReleaseDate") or
-        opp.get("open_date") or opp.get("post_date")
-    )
-    open_date = _parse_date(open_date_raw)
-
-    activity_code = (
-        opp.get("activity_code") or opp.get("ActivityCode") or
-        opp.get("activity") or ""
-    ).strip().upper()
-
-    institute = (
-        opp.get("agency_abbr") or opp.get("AgencyAbbr") or
-        opp.get("agency") or "NIH"
-    ).strip()
-    funder = f"NIH – {institute}" if institute and institute != "NIH" else "National Institutes of Health"
-
+    funder = "National Institutes of Health"
     thematic_sectors = ACTIVITY_CODE_SECTORS.get(
         activity_code, ["Health Sciences", "Research & Innovation"]
     )
-
     grant_type = "Fellowship" if activity_code.startswith(("F", "K", "T")) else "Research Grant"
 
     return {
@@ -207,9 +191,9 @@ def _map_opportunity(opp: dict) -> dict | None:
         "funder_name":              funder,
         "source_url":               portal_url,
         "application_portal_url":   portal_url,
-        "description":              opp.get("description") or opp.get("synopsis"),
-        "application_deadline":     deadline_iso,
-        "application_deadline_raw": str(deadline_raw) if deadline_raw else None,
+        "description":              opp.get("description") or None,
+        "application_deadline":     None,   # not in RSS; kept for review
+        "application_deadline_raw": None,
         "grant_opening_date":       open_date,
         "current_status":           "Open",
         "source_language":          "en",
@@ -229,7 +213,7 @@ def _map_opportunity(opp: dict) -> dict | None:
         "requires_review":          False,
         "crawl_date":               datetime.date.today().isoformat(),
         "content_hash":             hashlib.sha256(
-            f"{notice_id}|{title}|{deadline_iso}".encode()
+            f"{notice_id}|{title}|{portal_url}".encode()
         ).hexdigest(),
     }
 

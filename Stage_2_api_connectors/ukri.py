@@ -3,11 +3,8 @@
 UKRI funding opportunities connector — Stage 2 API source.
 
 Fetches open funding opportunities from the UKRI Funding Finder.
-No API key required. Uses the UKRI public search API that powers
-the funding finder at https://www.ukri.org/opportunity/
-
-API endpoint:
-  GET https://www.ukri.org/wp-json/ukri/v1/opportunities
+No API key required. Scrapes the server-rendered HTML listing at
+https://www.ukri.org/opportunity/ (paginated, ~10 per page).
 
 Usage (on the VPS):
     export $(grep DATABASE_URL /opt/grantglobe/Stage_3_LLM_extraction/.env | xargs)
@@ -19,8 +16,10 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import html
 import json
 import os
+import re
 import sys
 import time
 
@@ -31,36 +30,34 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# UKRI WordPress REST API (powers the public funding finder)
-UKRI_API_BASE = "https://www.ukri.org/wp-json/ukri/v1/opportunities"
-UKRI_OPP_BASE = "https://www.ukri.org/opportunity/"
-
-# Fallback: UKRI sitemap-based scrape target if API unavailable
-UKRI_SITEMAP = "https://www.ukri.org/opportunity-sitemap.xml"
+UKRI_BASE = "https://www.ukri.org/opportunity/"
+UKRI_PAGE = "https://www.ukri.org/opportunity/page/{}/"
+MAX_PAGES  = 25   # safety ceiling; real count is ~13
 
 COUNCIL_FUNDER_MAP: dict[str, str] = {
-    "AHRC": "Arts and Humanities Research Council",
-    "BBSRC": "Biotechnology and Biological Sciences Research Council",
-    "EPSRC": "Engineering and Physical Sciences Research Council",
-    "ESRC": "Economic and Social Research Council",
-    "Innovate UK": "Innovate UK",
-    "MRC": "Medical Research Council",
-    "NERC": "Natural Environment Research Council",
-    "NWDAF": "UKRI",
-    "STFC": "Science and Technology Facilities Council",
-    "RE": "Research England",
+    "AHRC":             "Arts and Humanities Research Council",
+    "BBSRC":            "Biotechnology and Biological Sciences Research Council",
+    "EPSRC":            "Engineering and Physical Sciences Research Council",
+    "ESRC":             "Economic and Social Research Council",
+    "Innovate UK":      "Innovate UK",
+    "MRC":              "Medical Research Council",
+    "NERC":             "Natural Environment Research Council",
+    "Research England": "Research England",
+    "STFC":             "Science and Technology Facilities Council",
+    "UKRI":             "UK Research and Innovation",
 }
 
 COUNCIL_SECTOR_MAP: dict[str, list[str]] = {
-    "AHRC": ["Arts & Culture", "Humanities & Social Sciences"],
-    "BBSRC": ["Health Sciences", "Agriculture & Food"],
-    "EPSRC": ["Science & Technology", "Information & Communication Technologies"],
-    "ESRC": ["Social Sciences & Humanities", "Economic Development"],
-    "Innovate UK": ["Technology & Innovation"],
-    "MRC": ["Health Sciences"],
-    "NERC": ["Climate & Environment"],
-    "STFC": ["Science & Technology", "Space"],
-    "RE": ["Education & Training", "Research & Innovation"],
+    "AHRC":             ["Arts & Culture", "Social Sciences & Humanities"],
+    "BBSRC":            ["Health Sciences", "Agriculture & Food"],
+    "EPSRC":            ["Science & Technology", "Information & Communication Technologies"],
+    "ESRC":             ["Social Sciences & Humanities", "Economic Development"],
+    "Innovate UK":      ["Technology & Innovation"],
+    "MRC":              ["Health Sciences"],
+    "NERC":             ["Climate & Environment"],
+    "Research England": ["Education & Training", "Research & Innovation"],
+    "STFC":             ["Science & Technology"],
+    "UKRI":             ["Research & Innovation"],
 }
 
 
@@ -91,13 +88,13 @@ def _connect():
 
 
 def _parse_date(date_str: str | None) -> str | None:
+    """Parse UK-style dates like '8 September 2026 4:00pm UK time'."""
     if not date_str:
         return None
     date_str = str(date_str).strip()
-    # Handle ISO 8601 with timezone
-    if "T" in date_str:
-        date_str = date_str.split("T")[0]
-    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d %B %Y", "%B %d, %Y"):
+    # Remove time portion
+    date_str = re.sub(r'\s+\d+:\d+[ap]m.*', '', date_str, flags=re.IGNORECASE).strip()
+    for fmt in ("%d %B %Y", "%d %b %Y", "%Y-%m-%d", "%d/%m/%Y"):
         try:
             return datetime.datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
         except ValueError:
@@ -105,174 +102,254 @@ def _parse_date(date_str: str | None) -> str | None:
     return None
 
 
-def _fetch_ukri_opportunities() -> list[dict]:
-    """Fetch UKRI open opportunities from the WordPress REST API."""
-    session = requests.Session()
-    session.headers.update({
-        "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (compatible; GrantGlobe/1.0)",
-    })
-
-    all_opps: list[dict] = []
-    page = 1
-    per_page = 100
-
-    while True:
-        params = {
-            "per_page": per_page,
-            "page": page,
-            "status": "open",
-        }
-        try:
-            resp = session.get(UKRI_API_BASE, params=params, timeout=30)
-            if resp.status_code == 404:
-                print("  UKRI WP API returned 404 — trying alternate endpoint …")
-                return _fetch_ukri_fallback(session)
-            resp.raise_for_status()
-            data = resp.json()
-        except requests.exceptions.JSONDecodeError:
-            print("  UKRI API did not return JSON — trying fallback …")
-            return _fetch_ukri_fallback(session)
-        except Exception as e:
-            print(f"  WARNING: UKRI fetch failed at page {page}: {e}")
-            if page == 1:
-                return _fetch_ukri_fallback(session)
-            break
-
-        records = data if isinstance(data, list) else data.get("data") or data.get("opportunities") or []
-        if not records:
-            break
-
-        all_opps.extend(records)
-        total_pages = int(resp.headers.get("X-WP-TotalPages", 1))
-        total = int(resp.headers.get("X-WP-Total", len(records)))
-        print(f"  UKRI: fetched {len(all_opps)} / {total} …")
-
-        if page >= total_pages or len(records) < per_page:
-            break
-
-        page += 1
-        time.sleep(0.5)
-
-    return all_opps
+def _parse_amount(amount_str: str | None) -> float | None:
+    """Parse UK monetary strings like '£2,000,000' or '£2 million'."""
+    if not amount_str:
+        return None
+    s = str(amount_str).replace(",", "").replace("£", "").replace("$", "").strip()
+    m = re.search(r"([\d.]+)\s*(million|m\b)?", s, re.IGNORECASE)
+    if not m:
+        return None
+    try:
+        val = float(m.group(1))
+        if m.group(2):
+            val *= 1_000_000
+        return val
+    except ValueError:
+        return None
 
 
-def _fetch_ukri_fallback(session: requests.Session) -> list[dict]:
+def _fetch_page(session: requests.Session, url: str) -> str | None:
+    """Fetch one UKRI listing page; return HTML body or None on error."""
+    try:
+        resp = session.get(url, timeout=30)
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        return resp.text
+    except Exception as e:
+        print(f"  WARNING: fetch failed for {url}: {e}")
+        return None
+
+
+def _parse_opportunities_from_html(html_text: str) -> list[dict]:
     """
-    Fallback: fetch the UKRI opportunities listing page as JSON.
-    Tries the /wp-json/wp/v2/posts endpoint filtered by opportunity category.
+    Extract opportunities from a UKRI listing page.
+
+    The page is server-rendered WordPress HTML. Each opportunity block
+    looks roughly like:
+
+        <article ...>
+          <h3 ...><a href="/opportunity/slug/">Title</a></h3>
+          ...Closing date: 8 September 2026...
+          ...Funders: ...EPSRC...
+          ...Total fund: £950,000...
+        </article>
+
+    We use a two-stage regex: first extract article blocks, then fields.
     """
-    print("  Using UKRI fallback endpoint …")
-    fallback_url = "https://www.ukri.org/wp-json/wp/v2/posts"
-    params = {
-        "per_page": 100,
-        "page": 1,
-        "categories_exclude": "",
-        "_fields": "id,title,link,date,acf,meta,excerpt",
-    }
-    all_opps = []
-    for page in range(1, 20):
-        params["page"] = page
-        try:
-            resp = session.get(fallback_url, params=params, timeout=30)
-            if resp.status_code in (400, 404):
-                break
-            resp.raise_for_status()
-            records = resp.json()
-            if not records:
-                break
-            # Filter to opportunity posts only (by URL pattern)
-            opps = [r for r in records if "/opportunity/" in (r.get("link") or "")]
-            all_opps.extend(opps)
-            if len(records) < 100:
-                break
-        except Exception as e:
-            print(f"  WARNING: UKRI fallback page {page} failed: {e}")
-            break
-        time.sleep(0.3)
+    opps: list[dict] = []
 
-    print(f"  UKRI fallback: retrieved {len(all_opps)} opportunity posts.")
-    return all_opps
+    # Extract each opportunity article block
+    article_blocks = re.findall(
+        r'<(?:article|li|div)[^>]+class="[^"]*(?:opportunity|listing)[^"]*"[^>]*>(.*?)</(?:article|li|div)>',
+        html_text,
+        re.DOTALL | re.IGNORECASE,
+    )
 
+    if not article_blocks:
+        # Fallback: extract h3 anchor + surrounding context (works on UKRI's current layout)
+        # Find h3 links that point to /opportunity/ slugs
+        h3_pattern = re.compile(
+            r'<h3[^>]*>\s*<a\s+href="(https?://www\.ukri\.org/opportunity/[^"]+)"[^>]*>'
+            r'(.*?)</a>',
+            re.DOTALL | re.IGNORECASE,
+        )
+        # Use a sliding window approach: find each h3 + next ~2000 chars as context
+        positions = [(m.start(), m.group(1), m.group(2)) for m in h3_pattern.finditer(html_text)]
+        for i, (pos, url_raw, title_raw) in enumerate(positions):
+            end = positions[i + 1][0] if i + 1 < len(positions) else pos + 2500
+            block = html_text[pos:end]
+            opps.append(_extract_fields(url_raw, title_raw, block))
+        return [o for o in opps if o]
 
-def _extract_field(opp: dict, *keys: str) -> str | None:
-    """Try multiple key names to extract a field."""
-    for k in keys:
-        v = opp.get(k)
-        if v:
-            if isinstance(v, dict):
-                v = v.get("rendered") or v.get("raw") or str(v)
-            return str(v).strip() or None
-    return None
+    for block in article_blocks:
+        # Extract h3 link
+        m_link = re.search(
+            r'<h3[^>]*>\s*<a\s+href="([^"]+)"[^>]*>(.*?)</a>',
+            block, re.DOTALL | re.IGNORECASE
+        )
+        if not m_link:
+            continue
+        url_raw   = m_link.group(1)
+        title_raw = m_link.group(2)
+        opps.append(_extract_fields(url_raw, title_raw, block))
+
+    return [o for o in opps if o]
 
 
-def _map_opportunity(opp: dict) -> dict | None:
-    """Map one UKRI record to a GrantGlobe grant dict."""
-    title = _extract_field(opp, "title", "post_title", "name")
-    if isinstance(title, dict):
-        title = title.get("rendered", "")
-    title = (title or "").strip()
+def _strip_tags(s: str) -> str:
+    """Remove HTML tags and decode entities."""
+    s = re.sub(r'<[^>]+>', ' ', s)
+    s = html.unescape(s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def _extract_fields(url_raw: str, title_raw: str, block: str) -> dict | None:
+    """Extract structured fields from an opportunity HTML block."""
+    title = _strip_tags(title_raw).strip()
     if not title:
         return None
 
-    # URL
-    portal_url = _extract_field(opp, "link", "url", "permalink", "guid")
-    if not portal_url:
-        slug = _extract_field(opp, "slug", "post_name")
-        if slug:
-            portal_url = f"{UKRI_OPP_BASE}{slug}/"
+    # Normalise URL
+    portal_url = url_raw.strip()
+    if portal_url.startswith("/"):
+        portal_url = "https://www.ukri.org" + portal_url
 
-    # Deadline
-    acf = opp.get("acf") or opp.get("meta") or {}
-    deadline_raw = (
-        _extract_field(opp, "closing_date", "deadline", "close_date") or
-        (acf.get("closing_date") or acf.get("deadline") if isinstance(acf, dict) else None)
+    # Strip block to plain text for easier field extraction
+    plain = _strip_tags(block)
+
+    # Closing date
+    m_close = re.search(
+        r'[Cc]losing date[:\s]+([^\n|]+?(?:\d{4}(?:\s+\d+:\d+[ap]m[^|]*)?|open\s*-\s*no\s+closing\s+date))',
+        plain, re.IGNORECASE
     )
+    deadline_raw = m_close.group(1).strip() if m_close else None
+    if deadline_raw and "no closing date" in deadline_raw.lower():
+        deadline_raw = None
     deadline_iso = _parse_date(deadline_raw)
 
-    open_date_raw = _extract_field(opp, "opening_date", "open_date", "date")
-    open_date = _parse_date(open_date_raw)
-
-    # Council / funder
-    council_raw = (
-        _extract_field(opp, "council", "funding_body", "research_council") or
-        (acf.get("council") if isinstance(acf, dict) else None) or ""
+    # Opening date
+    m_open = re.search(
+        r'Opening date[:\s]+([^\n|]+?\d{4}(?:\s+\d+:\d+[ap]m[^|]*)?)',
+        plain, re.IGNORECASE
     )
-    funder = COUNCIL_FUNDER_MAP.get(council_raw, f"UKRI – {council_raw}" if council_raw else "UKRI")
-    thematic_sectors = COUNCIL_SECTOR_MAP.get(council_raw, ["Research & Innovation"])
+    open_date = _parse_date(m_open.group(1).strip() if m_open else None)
 
-    # Budget
-    amount_raw = (
-        _extract_field(opp, "total_funding", "funding_amount", "award_amount") or
-        (acf.get("total_funding") if isinstance(acf, dict) else None)
+    # Publication date
+    m_pub = re.search(
+        r'Publication date[:\s]+([^\n|]+?\d{4})',
+        plain, re.IGNORECASE
     )
+    pub_date = _parse_date(m_pub.group(1).strip() if m_pub else None)
+
+    # Funders — capture council names after "Funders:"
+    m_funders = re.search(r'Funders?[:\s]+(.*?)(?:Co-funders?|Funding type|Opportunity status|$)',
+                           plain, re.IGNORECASE | re.DOTALL)
+    funders_text = m_funders.group(1).strip() if m_funders else ""
+    council_key = ""
+    for key in COUNCIL_FUNDER_MAP:
+        if key.lower() in funders_text.lower():
+            council_key = key
+            break
+    funder = COUNCIL_FUNDER_MAP.get(council_key, "UK Research and Innovation")
+    thematic_sectors = COUNCIL_SECTOR_MAP.get(council_key, ["Research & Innovation"])
+
+    # Funding amounts
+    m_total = re.search(r'Total fund[:\s]+(£[\d,\.]+\s*(?:million)?)', plain, re.IGNORECASE)
+    m_max   = re.search(r'Maximum award[:\s]+(£[\d,\.]+\s*(?:million)?)', plain, re.IGNORECASE)
+    m_range = re.search(r'Award range[:\s]+(£[\d,\.]+)\s*[-–]\s*(£[\d,\.]+)', plain, re.IGNORECASE)
+
     funding_max = None
-    if amount_raw:
-        import re
-        m = re.search(r"[\d,]+", str(amount_raw).replace(",", ""))
-        if m:
-            try:
-                funding_max = float(m.group().replace(",", ""))
-            except ValueError:
-                pass
+    funding_min = None
+    if m_total:
+        funding_max = _parse_amount(m_total.group(1))
+    elif m_max:
+        funding_max = _parse_amount(m_max.group(1))
+    if m_range:
+        funding_min = _parse_amount(m_range.group(1))
+        if not funding_max:
+            funding_max = _parse_amount(m_range.group(2))
 
-    opp_id = str(opp.get("id") or opp.get("ID") or "")
+    # Description: short blurb before "Opportunity status:"
+    m_desc = re.search(
+        r'</h3>\s*(.*?)(?:Opportunity status|Publication date)',
+        block, re.DOTALL | re.IGNORECASE
+    )
+    description = _strip_tags(m_desc.group(1)).strip() if m_desc else None
+
+    slug = re.search(r'/opportunity/([^/]+)/?$', portal_url)
+    opp_id = slug.group(1) if slug else portal_url
+
+    return {
+        "url":          portal_url,
+        "title":        title,
+        "funder":       funder,
+        "council_key":  council_key,
+        "description":  description,
+        "deadline_iso": deadline_iso,
+        "deadline_raw": deadline_raw,
+        "open_date":    open_date,
+        "pub_date":     pub_date,
+        "funding_min":  funding_min,
+        "funding_max":  funding_max,
+        "thematic_sectors": thematic_sectors,
+        "opp_id":       opp_id,
+    }
+
+
+def _fetch_ukri_opportunities() -> list[dict]:
+    """Fetch all UKRI open opportunities by paginating the listing."""
+    session = requests.Session()
+    session.headers.update({
+        "Accept": "text/html,application/xhtml+xml,*/*",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "en-GB,en;q=0.9",
+    })
+
+    all_opps: list[dict] = []
+
+    # Page 1 is at /opportunity/ (no page number)
+    for page_num in range(1, MAX_PAGES + 1):
+        url = UKRI_BASE if page_num == 1 else UKRI_PAGE.format(page_num)
+        html_text = _fetch_page(session, url)
+        if not html_text:
+            print(f"  UKRI: page {page_num} returned no content — stopping.")
+            break
+
+        page_opps = _parse_opportunities_from_html(html_text)
+        if not page_opps:
+            print(f"  UKRI: page {page_num} yielded 0 opportunities — stopping.")
+            break
+
+        all_opps.extend(page_opps)
+        print(f"  UKRI page {page_num}: {len(page_opps)} opportunities (total: {len(all_opps)})")
+
+        # Check if there's a next page link in the HTML
+        if "next page" not in html_text.lower() and f"page/{page_num + 1}" not in html_text:
+            break
+
+        time.sleep(0.5)  # be polite to the server
+
+    return all_opps
+
+
+def _map_opportunity(opp: dict) -> dict | None:
+    """Map one scraped UKRI record to a GrantGlobe grant dict."""
+    title = opp.get("title", "").strip()
+    portal_url = opp.get("url")
+    if not title or not portal_url:
+        return None
 
     return {
         "grant_title":              title,
-        "funder_name":              funder,
+        "funder_name":              opp.get("funder", "UK Research and Innovation"),
         "source_url":               portal_url,
         "application_portal_url":   portal_url,
-        "description":              _extract_field(opp, "excerpt", "description", "content"),
-        "application_deadline":     deadline_iso,
-        "application_deadline_raw": deadline_raw,
-        "grant_opening_date":       open_date,
+        "description":              opp.get("description"),
+        "application_deadline":     opp.get("deadline_iso"),
+        "application_deadline_raw": opp.get("deadline_raw"),
+        "grant_opening_date":       opp.get("open_date"),
         "current_status":           "Open",
         "source_language":          "en",
-        "funding_amount_min":       None,
-        "funding_amount_max":       funding_max,
-        "currency":                 "GBP" if funding_max else None,
-        "thematic_sectors":         thematic_sectors,
+        "funding_amount_min":       opp.get("funding_min"),
+        "funding_amount_max":       opp.get("funding_max"),
+        "currency":                 "GBP" if (opp.get("funding_min") or opp.get("funding_max")) else None,
+        "thematic_sectors":         opp.get("thematic_sectors", ["Research & Innovation"]),
         "grant_types":              ["Research Grant"],
         "applicant_base_regions":   ["Europe"],
         "geographic_focus_regions": ["Europe"],
@@ -285,7 +362,7 @@ def _map_opportunity(opp: dict) -> dict | None:
         "requires_review":          False,
         "crawl_date":               datetime.date.today().isoformat(),
         "content_hash":             hashlib.sha256(
-            f"{opp_id}|{title}|{deadline_iso}".encode()
+            f"{opp.get('opp_id')}|{title}|{opp.get('deadline_iso')}".encode()
         ).hexdigest(),
     }
 
@@ -323,12 +400,12 @@ def main() -> None:
     args = parser.parse_args()
 
     print("Fetching UKRI funding opportunities …")
-    opps = _fetch_ukri_opportunities()
-    print(f"  {len(opps)} raw records retrieved.")
+    raw_opps = _fetch_ukri_opportunities()
+    print(f"  {len(raw_opps)} raw records scraped.")
 
     today = datetime.date.today()
     mapped = []
-    for o in opps:
+    for o in raw_opps:
         g = _map_opportunity(o)
         if not g or not g.get("source_url") or not g.get("grant_title"):
             continue

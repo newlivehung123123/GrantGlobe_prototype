@@ -141,11 +141,16 @@ def _fetch_all_opportunities() -> list[dict]:
             break
 
         all_opps.extend(opps)
-        total = int(data.get("totalCount", 0))
-        print(f"  Fetched {len(all_opps)}/{total} opportunities …")
+        # totalCount may be 0 or missing — use len(opps) < page_size as stop signal
+        total = int(data.get("totalCount") or 0)
+        if total > 0:
+            print(f"  Fetched {len(all_opps)}/{total} opportunities …")
+        else:
+            print(f"  Fetched {len(all_opps)} opportunities …")
 
         start += page_size
-        if start >= total:
+        # Stop if: we reached totalCount, or got a partial page (last page)
+        if (total > 0 and start >= total) or len(opps) < page_size:
             break
         time.sleep(0.3)  # be polite
 
