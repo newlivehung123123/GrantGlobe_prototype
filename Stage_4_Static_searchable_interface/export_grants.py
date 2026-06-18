@@ -316,31 +316,40 @@ _REQUEST_HEADERS = {
 
 
 def _check_url(url: str, timeout: int = 8) -> bool:
-    """Return True if the URL resolves (HTTP 2xx or 3xx), False on 4xx/5xx/error."""
+    """Return False ONLY on explicit 404/410 (page definitively gone).
+
+    All other outcomes (403 Forbidden, timeout, connection error, 5xx) return
+    True — the grant is kept.  This avoids false positives from sites that
+    block bot traffic or are temporarily slow.
+    """
     if not url:
-        return True  # no URL → nothing to validate, keep record
+        return True
 
     from urllib.parse import urlparse
     domain = urlparse(url).netloc.lower().lstrip("www.")
     if any(domain.endswith(skip) for skip in _SKIP_VALIDATION_DOMAINS):
         return True
 
+    _DEAD_CODES = {404, 410}
+
     try:
         req = urllib.request.Request(url, method="HEAD", headers=_REQUEST_HEADERS)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status < 400
+            return resp.status not in _DEAD_CODES
     except urllib.error.HTTPError as e:
-        # 405 Method Not Allowed — server rejected HEAD, try GET
         if e.code == 405:
+            # Server rejected HEAD — try GET
             try:
                 req = urllib.request.Request(url, headers=_REQUEST_HEADERS)
                 with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    return resp.status < 400
+                    return resp.status not in _DEAD_CODES
+            except urllib.error.HTTPError as e2:
+                return e2.code not in _DEAD_CODES
             except Exception:
-                return False
-        return e.code < 400  # 3xx redirects raise HTTPError sometimes
+                return True  # uncertain — keep
+        return e.code not in _DEAD_CODES
     except Exception:
-        return False  # connection error / timeout — drop to be safe
+        return True  # timeout / connection error — keep, not confirmed dead
 
 
 def _filter_live_urls(grants: list[dict], max_workers: int = 20) -> list[dict]:
