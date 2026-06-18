@@ -367,82 +367,162 @@ def _filter_bad_url_patterns(grants: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# URL validation
+# Content verification
+# ---------------------------------------------------------------------------
+# For each grant we fetch the page and verify:
+#   1. HTTP status — drop on explicit 404/410 (page is gone)
+#   2. Title match  — at least N significant words from grant_title must appear
+#                     in the page text (catches wrong/homepage/tool URLs)
+#   3. Deadline year — if a deadline is set, its year must appear on the page
+#                      (catches grants whose deadline was hallucinated or
+#                       extracted from a different grant on the same listing page)
+#
+# On timeout, 403, 5xx, or any connection error the grant is KEPT — we cannot
+# confirm it is wrong, and bot-blocking is common on funder sites.
 # ---------------------------------------------------------------------------
 
-_SKIP_VALIDATION_DOMAINS = {
-    # Sites that block automated HEAD requests but are known-good
-    "researchprofessional.com",
-    "thelancet.com",
-}
+_SKIP_VALIDATION_DOMAINS: frozenset[str] = frozenset(
+    {
+        # Sites that reliably block automated GET requests but are known-good.
+        "researchprofessional.com",
+        "thelancet.com",
+    }
+)
 
-_REQUEST_HEADERS = {
+_REQUEST_HEADERS: dict[str, str] = {
     "User-Agent": (
-        "Mozilla/5.0 (compatible; GrantGlobe-LinkChecker/1.0; "
+        "Mozilla/5.0 (compatible; GrantGlobe-Verifier/1.0; "
         "+https://github.com/newlivehung123123/GrantGlobe_prototype)"
-    )
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en",
 }
 
+# Words that are too generic to be useful for title matching.
+_TITLE_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "about", "after", "again", "along", "among", "apply", "areas",
+        "award", "based", "being", "between", "calls", "comes", "could",
+        "doing", "during", "early", "every", "first", "focus", "funds",
+        "given", "grant", "grants", "great", "group", "having", "helps",
+        "human", "level", "local", "makes", "might", "national", "other",
+        "parts", "place", "please", "point", "program", "project", "provide",
+        "public", "reach", "research", "right", "since", "small", "start",
+        "still", "support", "their", "there", "these", "those", "three",
+        "through", "under", "until", "using", "value", "water", "which",
+        "while", "within", "world", "would", "years", "young",
+    }
+)
 
-def _check_url(url: str, timeout: int = 8) -> bool:
-    """Return False ONLY on explicit 404/410 (page definitively gone).
+_DEAD_CODES: frozenset[int] = frozenset({404, 410})
 
-    All other outcomes (403 Forbidden, timeout, connection error, 5xx) return
-    True — the grant is kept.  This avoids false positives from sites that
-    block bot traffic or are temporarily slow.
+# Minimum significant-word matches required to accept a page as correct.
+# Applied only when the title has ≥ 3 significant words.
+_TITLE_MIN_MATCHES = 2
+_TITLE_MIN_SIG_WORDS = 3  # skip title check for very short titles
+
+# Maximum bytes to read from a page (enough to cover the grant details section).
+_MAX_PAGE_BYTES = 80_000
+
+
+def _significant_title_words(title: str) -> list[str]:
+    """Return meaningful words (≥5 chars, not stopwords) from *title*."""
+    words = _re.findall(r'[a-zA-Z]{5,}', title.lower())
+    return [w for w in words if w not in _TITLE_STOPWORDS]
+
+
+def _verify_grant(grant: dict, timeout: int = 12) -> tuple[dict, bool, str]:
+    """Fetch the grant URL and verify title + deadline against page content.
+
+    Returns (grant, keep, reason_string).
+
+    Drops only when we have a confirmed page fetch AND the content does not
+    match the grant record.  All uncertain outcomes (timeout, bot-block,
+    connection error) return keep=True.
     """
+    from urllib.parse import urlparse as _up
+
+    url = grant.get("application_portal_url") or grant.get("source_url")
     if not url:
-        return True
+        return grant, True, "no_url"
 
-    from urllib.parse import urlparse
-    domain = urlparse(url).netloc.lower().lstrip("www.")
-    if any(domain.endswith(skip) for skip in _SKIP_VALIDATION_DOMAINS):
-        return True
+    domain = _up(url).netloc.lower().lstrip("www.")
+    if any(domain.endswith(s) for s in _SKIP_VALIDATION_DOMAINS):
+        return grant, True, "skip_domain"
 
-    _DEAD_CODES = {404, 410}
+    title: str = grant.get("grant_title") or ""
+    deadline: str | None = grant.get("application_deadline")  # ISO "YYYY-MM-DD" or None
 
     try:
-        req = urllib.request.Request(url, method="HEAD", headers=_REQUEST_HEADERS)
+        req = urllib.request.Request(url, headers=_REQUEST_HEADERS)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status not in _DEAD_CODES
-    except urllib.error.HTTPError as e:
-        if e.code == 405:
-            # Server rejected HEAD — try GET
+            if resp.status in _DEAD_CODES:
+                return grant, False, f"http_{resp.status}"
+
+            raw = resp.read(_MAX_PAGE_BYTES)
+            charset = resp.headers.get_content_charset("utf-8")
             try:
-                req = urllib.request.Request(url, headers=_REQUEST_HEADERS)
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    return resp.status not in _DEAD_CODES
-            except urllib.error.HTTPError as e2:
-                return e2.code not in _DEAD_CODES
-            except Exception:
-                return True  # uncertain — keep
-        return e.code not in _DEAD_CODES
-    except Exception:
-        return True  # timeout / connection error — keep, not confirmed dead
+                page_text = raw.decode(charset, errors="replace")
+            except (LookupError, UnicodeDecodeError):
+                page_text = raw.decode("utf-8", errors="replace")
+
+            page_lower = page_text.lower()
+
+            # ── Title verification ──────────────────────────────────────
+            sig_words = _significant_title_words(title)
+            if len(sig_words) >= _TITLE_MIN_SIG_WORDS:
+                matches = sum(1 for w in sig_words if w in page_lower)
+                if matches < _TITLE_MIN_MATCHES:
+                    return grant, False, (
+                        f"title_mismatch: {matches}/{len(sig_words)} words found "
+                        f"(need {_TITLE_MIN_MATCHES})"
+                    )
+
+            # ── Deadline year verification ──────────────────────────────
+            # Only apply when we already have a confirmed live page and a
+            # specific deadline date (not rolling/TBC grants with NULL deadline).
+            if deadline:
+                deadline_year = str(deadline)[:4]
+                if deadline_year not in page_text:
+                    return grant, False, (
+                        f"deadline_year_missing: {deadline_year} not on page"
+                    )
+
+            return grant, True, "ok"
+
+    except urllib.error.HTTPError as exc:
+        if exc.code in _DEAD_CODES:
+            return grant, False, f"http_{exc.code}"
+        return grant, True, f"http_{exc.code}_keep"
+    except Exception as exc:
+        # Timeout, connection refused, SSL error, etc. — uncertain, keep.
+        return grant, True, f"error_keep: {type(exc).__name__}"
 
 
-def _filter_live_urls(grants: list[dict], max_workers: int = 20) -> list[dict]:
-    """Remove grants whose primary URL returns a 4xx/5xx response.
+def _filter_live_urls(grants: list[dict], max_workers: int = 15) -> list[dict]:
+    """Verify each grant against its URL; drop records that fail content checks.
 
-    Checks application_portal_url first; falls back to source_url.
-    Runs concurrently to keep total time under ~60 s for 300+ records.
+    Runs concurrently (15 workers) to keep total time manageable.
+    Restores original sort order after async completion.
     """
-    def _check(grant: dict) -> tuple[dict, bool]:
-        url = grant.get("application_portal_url") or grant.get("source_url")
-        return grant, _check_url(url)
-
     live: list[dict] = []
     dropped = 0
+    drop_reasons: list[str] = []
+
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {pool.submit(_check, g): g for g in grants}
+        futures = {pool.submit(_verify_grant, g): g for g in grants}
         for future in as_completed(futures):
-            grant, ok = future.result()
+            grant, ok, reason = future.result()
             if ok:
                 live.append(grant)
             else:
                 dropped += 1
+                drop_reasons.append(f"  ✗ {grant.get('grant_title', '?')[:60]}  [{reason}]")
 
-    print(f"  URL validation: {len(live)} live, {dropped} dropped (broken links)")
+    print(f"  Content verification: {len(live)} passed, {dropped} dropped")
+    for r in sorted(drop_reasons):
+        print(r)
+
     # Restore original sort order (futures complete out of order)
     id_order = {g["id"]: i for i, g in enumerate(grants)}
     live.sort(key=lambda g: id_order.get(g["id"], 9999))
