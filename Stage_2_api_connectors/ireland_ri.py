@@ -181,6 +181,7 @@ def _fetch_page(session: requests.Session) -> str | None:
     try:
         resp = session.get(RI_URL, timeout=30)
         resp.raise_for_status()
+        resp.encoding = "utf-8"   # Next.js always serves UTF-8; prevent latin-1 mis-decode
         return resp.text
     except Exception as e:
         print(f"  WARNING: RI fetch failed: {e}")
@@ -253,14 +254,15 @@ def _parse_next_data(page_html: str) -> list[dict]:
             item.get("amount") or ""
         ).strip()
 
-        desc = str(
+        desc_raw = (
             item.get("description") or item.get("excerpt") or
             item.get("summary") or ""
-        ).strip()
-        if isinstance(item.get("description"), dict):
-            desc = str(
-                item["description"].get("text") or item["description"].get("value") or ""
-            ).strip()
+        )
+        if isinstance(desc_raw, dict):
+            desc_raw = (
+                desc_raw.get("text") or desc_raw.get("value") or ""
+            )
+        desc = _strip_html(str(desc_raw)).strip()[:500]
 
         items.append({
             "title":        title,
@@ -268,7 +270,7 @@ def _parse_next_data(page_html: str) -> list[dict]:
             "status":       status,
             "deadline_raw": deadline_raw,
             "amount_raw":   amount_raw,
-            "description":  desc[:500],
+            "description":  desc,
         })
 
     print(f"  RI: parsed {len(items)} items from __NEXT_DATA__")
@@ -354,6 +356,43 @@ def _parse_html_fallback(page_html: str) -> list[dict]:
     return deduped
 
 
+def _enrich_from_html(items: list[dict], page_html: str) -> list[dict]:
+    """
+    After __NEXT_DATA__ parsing, deadline/amount metadata is often absent from
+    the JSON (stored only in the rendered HTML as DT/DD or labelled divs).
+    Anchor on each item's href slug and search the following ~2000 chars.
+    """
+    for item in items:
+        url = item.get("url", "")
+        if not url:
+            continue
+        slug = url.replace(RI_BASE, "")           # e.g. /funding/clean-energy-transition-partnership/
+        # Find the slug as an href value — more specific than a bare text search
+        anchor = f'href="{slug}'
+        pos = page_html.find(anchor)
+        if pos < 0:
+            # Try without trailing slash
+            anchor = f'href="{slug.rstrip("/")}'
+            pos = page_html.find(anchor)
+        if pos < 0:
+            continue
+        ctx = page_html[pos: pos + 2500]
+
+        # Deadline
+        if not item.get("deadline_raw"):
+            dl_m = re.search(r"[Dd]eadline[^:]*:\s*([^<\n]{5,120})", ctx)
+            if dl_m:
+                item["deadline_raw"] = _strip_html(dl_m.group(1)).strip()
+
+        # Award amount
+        if not item.get("amount_raw"):
+            am_m = re.search(r"[€£\$][\d,][\d,\.\s\-–Mmillion]+", ctx)
+            if am_m:
+                item["amount_raw"] = _strip_html(am_m.group(0)).strip()
+
+    return items
+
+
 def _fetch_ri_calls() -> list[dict]:
     session = requests.Session()
     session.headers.update({
@@ -372,8 +411,11 @@ def _fetch_ri_calls() -> list[dict]:
         return []
     print(f"  RI: {len(page_html)} chars fetched")
 
-    # Primary: __NEXT_DATA__ JSON
+    # Primary: __NEXT_DATA__ JSON (gives title/url/status; deadline/amount often absent)
     items = _parse_next_data(page_html)
+    if items:
+        # Deadline and award amount are in the rendered HTML, not __NEXT_DATA__
+        items = _enrich_from_html(items, page_html)
 
     # Fallback: HTML regex
     if not items:
