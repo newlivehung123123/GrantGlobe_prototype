@@ -138,8 +138,6 @@ def _fetch_nsf_solicitations() -> list[dict]:
                     "printFields": FIELDS,
                     "offset": offset,
                     "rpp": rpp,
-                    "sortField": "startDate",
-                    "sortOrder": "desc",
                 },
                 timeout=30,
             )

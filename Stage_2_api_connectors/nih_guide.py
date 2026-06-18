@@ -180,21 +180,29 @@ def _fetch_nih_opportunities() -> list[dict]:
 
 
 def _map_opportunity(project: dict) -> dict | None:
-    """Map one NIH RePORTER project to a GrantGlobe grant dict."""
-    title = (project.get("ProjectTitle") or "").strip()
-    proj_num = (project.get("ProjectNum") or "").strip()
+    """
+    Map one NIH RePORTER project to a GrantGlobe grant dict.
+
+    NIH RePORTER API v2 returns snake_case field names, e.g.:
+      project_title, project_num, project_start_date, project_end_date,
+      abstract_text, agency_code, total_cost, project_serial_num
+    """
+    title    = (project.get("project_title") or "").strip()
+    proj_num = (project.get("project_num") or "").strip()
     if not title or not proj_num:
         return None
 
-    serial = project.get("ProjectSerialNum") or proj_num
+    serial = project.get("project_serial_num") or proj_num
     portal_url = f"https://reporter.nih.gov/project-details/{serial}"
 
-    open_date    = _parse_date(project.get("ProjectStartDate"))
-    deadline_iso = _parse_date(project.get("ProjectEndDate"))
+    open_date    = _parse_date(project.get("project_start_date"))
+    deadline_iso = _parse_date(project.get("project_end_date"))
 
-    agency_code = (project.get("AgencyCode") or "NIH").strip()
-    funder = AGENCY_FUNDER_MAP.get(agency_code,
-                                   f"NIH – {agency_code}" if agency_code != "NIH" else "National Institutes of Health")
+    agency_code = (project.get("agency_code") or "NIH").strip()
+    funder = AGENCY_FUNDER_MAP.get(
+        agency_code,
+        f"NIH – {agency_code}" if agency_code != "NIH" else "National Institutes of Health"
+    )
 
     # Activity code from project number prefix (e.g. "R01CA123456" → "R01")
     m_code = re.match(r'^([A-Z]\d{2})', proj_num)
@@ -204,13 +212,13 @@ def _map_opportunity(project: dict) -> dict | None:
     )
     grant_type = "Fellowship" if activity_code.startswith(("F", "K", "T")) else "Research Grant"
 
-    total_cost = project.get("TotalCost") or project.get("DirectCostAmt")
+    total_cost = project.get("total_cost") or project.get("direct_cost_amt")
     try:
         funding_max = float(total_cost) if total_cost else None
     except (ValueError, TypeError):
         funding_max = None
 
-    abstract = (project.get("AbstractText") or "").strip()
+    abstract = (project.get("abstract_text") or "").strip()
     description = abstract[:500] if abstract else None
 
     return {
@@ -220,7 +228,7 @@ def _map_opportunity(project: dict) -> dict | None:
         "application_portal_url":   "https://grants.nih.gov/funding/searchGuide/search-results-data.cfm",
         "description":              description,
         "application_deadline":     deadline_iso,
-        "application_deadline_raw": project.get("ProjectEndDate"),
+        "application_deadline_raw": project.get("project_end_date"),
         "grant_opening_date":       open_date,
         "current_status":           "Open",
         "source_language":          "en",
