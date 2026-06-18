@@ -137,8 +137,9 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
 
     seen_urls: set[str] = set()
     for m in link_pat.finditer(html_text):
-        href_raw  = m.group(1).strip()
-        title_raw = _strip_tags(m.group(2)).strip()
+        href_raw      = m.group(1).strip()
+        link_inner    = m.group(2)           # raw HTML inside the <a> tag
+        title_raw     = _strip_tags(link_inner).strip()
 
         if not title_raw or len(title_raw) < 5:
             continue
@@ -151,21 +152,52 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
             continue
         seen_urls.add(url)
 
+        # The RCN anchor includes metadata after the title (e.g. "Target groups: … 27 May").
+        # Truncate at the first known metadata label or a bare month+day pattern.
+        _TITLE_CUT = re.compile(
+            r"\s+(?:Target groups?|Application deadline|Deadline|Open for|Closes?|"
+            r"Frist|Søknadsfrist)\s*[:–].*$"
+            r"|\s+\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+            r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+            r"(?:\s+\d{4})?$",
+            re.IGNORECASE,
+        )
+        title = _TITLE_CUT.sub("", title_raw).strip()
+        if not title:
+            title = title_raw.split("\n")[0].strip()   # fallback: first line only
+
         pos   = m.start()
         block = html_text[max(0, pos - 300): pos + 2000]
 
-        # Deadline
+        # Try to extract deadline from the link inner text first (often "27 May 2026")
         deadline_raw = None
         deadline_iso = None
-        date_pat = re.compile(
-            r"(?:deadline|closing|closes?|frist)[^<]*?"
-            r"(\d{1,2}\.?\s*\w+\s+\d{4}|\d{1,2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})",
+        # Date embedded in link text after truncation point
+        _DATE_IN_LINK = re.compile(
+            r"(\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|"
+            r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+            r"(?:\s+\d{4})?)",
             re.IGNORECASE,
         )
-        dm = date_pat.search(block)
-        if dm:
-            deadline_raw = dm.group(1).replace(".", " ").strip()
-            deadline_iso = _parse_date(deadline_raw)
+        dm_link = _DATE_IN_LINK.search(title_raw[len(title):])
+        if dm_link:
+            raw = dm_link.group(1).strip()
+            # Append current year if year is missing
+            if not re.search(r"\d{4}", raw):
+                raw = f"{raw} {datetime.date.today().year}"
+            deadline_raw = raw
+            deadline_iso = _parse_date(raw)
+
+        if not deadline_iso:
+            date_pat = re.compile(
+                r"(?:deadline|closing|closes?|frist)[^<]*?"
+                r"(\d{1,2}\.?\s*\w+\s+\d{4}|\d{1,2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})",
+                re.IGNORECASE,
+            )
+            dm = date_pat.search(block)
+            if dm:
+                deadline_raw = dm.group(1).replace(".", " ").strip()
+                deadline_iso = _parse_date(deadline_raw)
 
         desc_m = re.search(r"<p[^>]*>(.*?)</p>", block, re.DOTALL | re.IGNORECASE)
         description = _strip_tags(desc_m.group(1)).strip()[:400] if desc_m else None
@@ -174,12 +206,12 @@ def _parse_calls_from_html(html_text: str) -> list[dict]:
         opp_id = slug.group(1) if slug else href_raw
 
         opps.append({
-            "title":            title_raw,
+            "title":            title,      # cleaned title
             "url":              url,
             "deadline_iso":     deadline_iso,
             "deadline_raw":     deadline_raw,
             "description":      description,
-            "thematic_sectors": _infer_sectors((title_raw or "") + " " + (description or "")),
+            "thematic_sectors": _infer_sectors((title or "") + " " + (description or "")),
             "opp_id":           opp_id,
         })
 
