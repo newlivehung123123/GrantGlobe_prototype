@@ -123,10 +123,11 @@ WHERE
     )
 {closed_clause}
     -- English-only: source_language is stored as ISO 639-1 codes ("en", "fr",
-    -- "nl", "de", …).  Keep "en", NULL (language not detected — assume English),
+    -- "nl", "de", …) but may have trailing whitespace — use TRIM().
+    -- Keep "en", NULL (language not detected — assume English),
     -- and "ot" (unrecognised code — safer to keep than silently drop).
     -- Exclude all other language codes (fr, nl, de, es, pt, …).
-    AND (g.source_language IS NULL OR g.source_language IN ('en', 'ot'))
+    AND (g.source_language IS NULL OR TRIM(g.source_language) IN ('en', 'ot'))
 
     -- Stale deadline filter: exclude any grant whose application deadline has
     -- already passed, regardless of current_status.  Grants without a fixed
