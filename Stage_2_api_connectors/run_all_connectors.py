@@ -42,6 +42,7 @@ CONNECTORS = [
     # ── Pacific ──────────────────────────────────────────────────────────────
     ("Australia Grants",       CONNECTORS_DIR / "australia.py"),
     # ── Other ────────────────────────────────────────────────────────────────
+    ("NordForsk",              CONNECTORS_DIR / "nordic_nordforsk.py"),
     ("NWO Netherlands",        CONNECTORS_DIR / "nwo.py"),
     ("Research Council Norway",CONNECTORS_DIR / "norway.py"),
 ]
