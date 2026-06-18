@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import hashlib
 import os
 import sys
 import time
@@ -238,6 +239,10 @@ def _map_topic(topic: dict) -> dict:
         "review_status":            "approved",
         "requires_review":          False,
         "crawl_date":               datetime.date.today().isoformat(),
+        # content_hash: stable fingerprint so NOT NULL constraint is satisfied
+        "content_hash":             hashlib.sha256(
+            f"{topic_id}|{title}|{deadline_iso}".encode()
+        ).hexdigest(),
         # Lookup key (not a DB column; used for upsert matching)
         "_topic_id":                topic_id,
     }
