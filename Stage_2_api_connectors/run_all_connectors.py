@@ -72,6 +72,8 @@ CONNECTORS = [
     ("NordForsk",              CONNECTORS_DIR / "nordic_nordforsk.py"),
     ("NWO Netherlands",        CONNECTORS_DIR / "nwo.py"),
     ("Research Council Norway",CONNECTORS_DIR / "norway.py"),
+    ("Long-Term Future Fund (LTFF)", CONNECTORS_DIR / "ltff.py"),
+    ("Survival and Flourishing Fund (SFF)", CONNECTORS_DIR / "sff.py"),
 ]
 
 
