@@ -53,6 +53,7 @@ CONNECTORS = [
     ("ARC Australia",          CONNECTORS_DIR / "arc_australia.py"),
     # ── Other ────────────────────────────────────────────────────────────────
     ("Simons Foundation",      CONNECTORS_DIR / "simons_foundation.py"),
+    ("Commonwealth Scholarships (CSC)", CONNECTORS_DIR / "csc_uk.py"),
     ("NordForsk",              CONNECTORS_DIR / "nordic_nordforsk.py"),
     ("NWO Netherlands",        CONNECTORS_DIR / "nwo.py"),
     ("Research Council Norway",CONNECTORS_DIR / "norway.py"),
