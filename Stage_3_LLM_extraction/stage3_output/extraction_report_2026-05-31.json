@@ -1,0 +1,20 @@
+{
+  "report_date": "2026-05-31",
+  "pages_processed": 696,
+  "pages_skipped_unchanged": 0,
+  "pages_skipped_content_too_short": 0,
+  "pages_failed": 0,
+  "pages_empty_extraction": 394,
+  "records_extracted_total": 1927,
+  "records_inserted_new": 776,
+  "records_updated_higher_confidence": 181,
+  "records_duplicate_lower_confidence": 970,
+  "records_flagged_review": 908,
+  "fields_others_frequency": {},
+  "domains_zero_extraction": [
+    "anr.fr",
+    "ec.europa.eu"
+  ],
+  "average_confidence_by_field": {},
+  "extraction_cost_estimate_usd": 0.0
+}

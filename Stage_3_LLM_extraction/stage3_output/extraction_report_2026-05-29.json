@@ -1,0 +1,17 @@
+{
+  "report_date": "2026-05-29",
+  "pages_processed": 0,
+  "pages_skipped_unchanged": 0,
+  "pages_skipped_content_too_short": 0,
+  "pages_failed": 0,
+  "pages_empty_extraction": 0,
+  "records_extracted_total": 0,
+  "records_inserted_new": 0,
+  "records_updated_higher_confidence": 0,
+  "records_duplicate_lower_confidence": 0,
+  "records_flagged_review": 0,
+  "fields_others_frequency": {},
+  "domains_zero_extraction": [],
+  "average_confidence_by_field": {},
+  "extraction_cost_estimate_usd": 0.0
+}
