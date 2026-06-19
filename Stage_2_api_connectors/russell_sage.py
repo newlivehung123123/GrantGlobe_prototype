@@ -258,7 +258,7 @@ for _s in SCHEMES:
 # Dissertation Research Grants and the Causal Research on the Criminal
 # Justice System program both explicitly require a US institutional base.
 for _title in ("Dissertation Research Grants", "Causal Research on the Criminal Justice System"):
-    next(s for s in SCHEMES if s["title"] == _title)["applicant_countries"] = ["United States"]
+    next(s for s in SCHEMES if s["title"] == _title)["applicant_countries"] = ["US"]  # CHAR(2)[] column — ISO-2 code, not full name
 
 
 # ---------------------------------------------------------------------------
