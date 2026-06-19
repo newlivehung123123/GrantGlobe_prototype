@@ -71,7 +71,7 @@ SCHEMES: list[dict] = [
         "sectors":    ["AI Security", "Technology Policy and Governance", "Biosecurity"],
         "individual": ["Researcher", "Policy Professional"],
         "grant_types": ["Fellowship"],
-        "applicant_countries": ["United States", "United Kingdom"],
+        "applicant_countries": ["US", "GB"],  # CHAR(2)[] column — ISO-2 codes, not full names
         "focus_regions": [],
         "focus_countries": [],
         "desc": (

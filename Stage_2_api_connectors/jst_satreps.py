@@ -69,7 +69,7 @@ SCHEMES: list[dict] = [
                        "Disaster Prevention and Mitigation"],
         "individual": ["Researcher", "Senior Researcher"],
         "grant_types": ["Research Grant"],
-        "applicant_countries": ["Japan"],
+        "applicant_countries": ["JP"],  # CHAR(2)[] column — ISO-2 code, not full name
         "focus_regions": ["Global", "Developing Countries"],
         "focus_countries": [],
         "desc": (
@@ -93,7 +93,7 @@ SCHEMES: list[dict] = [
 for _s in SCHEMES:
     _s.setdefault("org_types", ORG_UNI)
     _s.setdefault("currency", "JPY")
-    _s.setdefault("applicant_countries", ["Japan"])
+    _s.setdefault("applicant_countries", ["JP"])  # CHAR(2)[] column — ISO-2 code, not full name
     _s.setdefault("focus_regions", ["Global"])
     _s.setdefault("focus_countries", [])
 

@@ -99,7 +99,7 @@ SCHEMES: list[dict] = [
         "sectors":    ["Literature", "Creative Writing", "Theatre & Performance Studies", "Humanities"],
         "individual": ["Practitioner", "Independent Researcher", "Researcher", "Artist"],
         "grant_types": ["Fellowship"],
-        "applicant_countries": ["United States"],
+        "applicant_countries": ["US"],  # CHAR(2)[] column — ISO-2 code, not full name
         "focus_regions": [],
         "focus_countries": [],
         "desc": (

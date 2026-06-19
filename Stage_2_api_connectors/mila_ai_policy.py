@@ -70,7 +70,7 @@ SCHEMES: list[dict] = [
         "grant_types": ["Fellowship"],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Canada"],
+        "focus_countries": ["CA"],  # CHAR(2)[] column — ISO-2 code, not full name
         "desc": (
             "Mila's AI Policy Fellowship bridges AI research and policy "
             "through a socio-technical approach. This six-month, "
@@ -91,7 +91,7 @@ for _s in SCHEMES:
     _s.setdefault("currency", "CAD")
     _s.setdefault("applicant_countries", [])
     _s.setdefault("focus_regions", [])
-    _s.setdefault("focus_countries", ["Canada"])
+    _s.setdefault("focus_countries", ["CA"])  # CHAR(2)[] column — ISO-2 code, not full name
 
 
 # ---------------------------------------------------------------------------

@@ -53,7 +53,7 @@ SCHEMES: list[dict] = [
         # Deadline: Sunday, July 12, 2026 at 11:59PM ET.
         "deadline":   datetime.date(2026, 7, 12),
         "open_threshold_days": 60,
-        "focus_countries": ["United States"],
+        "focus_countries": ["US"],  # CHAR(2)[] column — ISO-2 code, not full name
         "desc": (
             "A three-month, bipartisan fellowship designed to accelerate "
             "or launch impactful careers in American AI governance and "
@@ -67,7 +67,7 @@ SCHEMES: list[dict] = [
         # Deadline: 23:59 BST Sunday 12 July 2026.
         "deadline":   datetime.date(2026, 7, 12),
         "open_threshold_days": 60,
-        "focus_countries": ["United Kingdom"],
+        "focus_countries": ["GB"],  # CHAR(2)[] column — ISO-2 code, not full name
         "desc": (
             "Winter Fellows on the Research Track join GovAI in London "
             "from 18 January to 9 April 2027 and conduct a research "
@@ -80,7 +80,7 @@ SCHEMES: list[dict] = [
         # Deadline: 23:59 BST Sunday 12 July 2026.
         "deadline":   datetime.date(2026, 7, 12),
         "open_threshold_days": 60,
-        "focus_countries": ["United Kingdom"],
+        "focus_countries": ["GB"],  # CHAR(2)[] column — ISO-2 code, not full name
         "desc": (
             "Winter Fellows on the Applied Track join GovAI in London "
             "from 18 January to 9 April 2027, working on non-research "
@@ -95,7 +95,7 @@ SCHEMES: list[dict] = [
         # Deadline: Sunday, July 5, 2026 at 11:59PM ET.
         "deadline":   datetime.date(2026, 7, 5),
         "open_threshold_days": 60,
-        "focus_countries": ["United States"],
+        "focus_countries": ["US"],  # CHAR(2)[] column — ISO-2 code, not full name
         "desc": (
             "A bipartisan, part-time, 12-week program designed to "
             "accelerate or launch careers in US AI policy, open to US "

@@ -280,7 +280,7 @@ for _s in SCHEMES:
     _s.setdefault("currency", "GBP")
     _s.setdefault("applicant_countries", [])
     _s.setdefault("focus_regions", ["United Kingdom"])
-    _s.setdefault("focus_countries", ["United Kingdom"])
+    _s.setdefault("focus_countries", ["GB"])  # CHAR(2)[] column — ISO-2 code, not full name
     # open_threshold_days = the scheme's own observed open-to-close window
     _s.setdefault(
         "open_threshold_days",

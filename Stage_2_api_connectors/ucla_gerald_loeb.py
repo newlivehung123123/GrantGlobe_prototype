@@ -79,7 +79,7 @@ SCHEMES: list[dict] = [
         "grant_types": ["Award"],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["United States"],
+        "focus_countries": ["US"],  # CHAR(2)[] column — ISO-2 code, not full name
         "desc": (
             "The most prestigious honor in U.S. business journalism, "
             "established in 1957 by Gerald Loeb (a founding partner of "

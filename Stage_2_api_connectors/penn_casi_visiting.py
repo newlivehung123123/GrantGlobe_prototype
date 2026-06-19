@@ -93,7 +93,7 @@ SCHEMES: list[dict] = [
         "grant_types": ["Fellowship"],
         "applicant_countries": [],
         "focus_regions": ["South Asia"],
-        "focus_countries": ["India"],
+        "focus_countries": ["IN"],  # CHAR(2)[] column — ISO-2 code, not full name
         "desc": (
             "A one-to-three-month residency at the Center for the "
             "Advanced Study of India (CASI), School of Arts & Sciences, "

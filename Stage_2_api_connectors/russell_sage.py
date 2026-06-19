@@ -250,7 +250,7 @@ for _s in SCHEMES:
     _s.setdefault("currency", "USD")
     _s.setdefault("applicant_countries", [])
     _s.setdefault("focus_regions", ["United States"])
-    _s.setdefault("focus_countries", ["United States"])
+    _s.setdefault("focus_countries", ["US"])  # CHAR(2)[] column — ISO-2 code, not full name
     # The Fluxx portal opens exactly two months (60 days) ahead of every
     # deadline foundation-wide, per RSF's own Application Deadlines page.
     _s.setdefault("open_threshold_days", 60)

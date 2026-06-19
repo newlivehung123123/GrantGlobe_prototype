@@ -73,7 +73,7 @@ SCHEMES: list[dict] = [
         "sectors":    [],
         "individual": ["Researcher"],
         "grant_types": ["Fellowship"],
-        "focus_countries": ["Brazil", "European Union"],
+        "focus_countries": ["BR", "EU"],  # CHAR(2)[] column — ISO-2 codes, not full names
         "desc": (
             "Annual call run jointly by FAPESP, the National Council of "
             "State Funding Agencies (Confap), and the European Research "
@@ -96,7 +96,7 @@ SCHEMES: list[dict] = [
         "sectors":    [],
         "individual": ["Researcher"],
         "grant_types": ["Mobility Grant"],
-        "focus_countries": ["Brazil", "Germany"],
+        "focus_countries": ["BR", "DE"],  # CHAR(2)[] column — ISO-2 codes, not full names
         "desc": (
             "Annual call allowing researchers who already hold an ongoing "
             "FAPESP grant to apply for academic exchange and mobility "
@@ -117,7 +117,7 @@ SCHEMES: list[dict] = [
         "sectors":    [],
         "individual": ["Researcher"],
         "grant_types": ["Research Grant"],
-        "focus_countries": ["Brazil", "South Korea"],
+        "focus_countries": ["BR", "KR"],  # CHAR(2)[] column — ISO-2 codes, not full names
         "desc": (
             "Joint call between FAPESP and South Korea's National Research "
             "Foundation (NRF) supporting collaborative Regular Research "
@@ -139,7 +139,7 @@ SCHEMES: list[dict] = [
         "sectors":    [],
         "individual": ["Researcher"],
         "grant_types": ["Research Grant"],
-        "focus_countries": ["Brazil", "European Union"],
+        "focus_countries": ["BR", "EU"],  # CHAR(2)[] column — ISO-2 codes, not full names
         "desc": (
             "Standing mechanism, run with Confap, enabling researchers "
             "based in the state of São Paulo to participate in Horizon "
@@ -163,7 +163,7 @@ SCHEMES: list[dict] = [
         "sectors":    [],
         "individual": ["Researcher"],
         "grant_types": ["Research Grant"],
-        "focus_countries": ["Brazil", "Germany"],
+        "focus_countries": ["BR", "DE"],  # CHAR(2)[] column — ISO-2 codes, not full names
         "desc": (
             "Standing cooperation agreement between FAPESP and Germany's "
             "DFG, matching FAPESP's Regular Research Grant and Thematic "
@@ -186,7 +186,7 @@ SCHEMES: list[dict] = [
         "sectors":    ["Geosciences"],
         "individual": ["Researcher"],
         "grant_types": ["Research Grant"],
-        "focus_countries": ["Brazil", "United States"],
+        "focus_countries": ["BR", "US"],  # CHAR(2)[] column — ISO-2 codes, not full names
         "desc": (
             "Standing cooperation between FAPESP and the U.S. National "
             "Science Foundation's Directorate for Geosciences, supporting "
@@ -208,7 +208,7 @@ SCHEMES: list[dict] = [
         "sectors":    ["Biological Sciences", "Biotechnology"],
         "individual": ["Researcher"],
         "grant_types": ["Research Grant"],
-        "focus_countries": ["Brazil", "United Kingdom"],
+        "focus_countries": ["BR", "GB"],  # CHAR(2)[] column — ISO-2 codes, not full names
         "desc": (
             "Standing cooperation between FAPESP and the UK's Biotechnology "
             "and Biological Sciences Research Council (BBSRC), funding "
@@ -224,9 +224,9 @@ SCHEMES: list[dict] = [
 for _s in SCHEMES:
     _s.setdefault("org_types", ORG_UNI)
     _s.setdefault("currency", "BRL")
-    _s.setdefault("applicant_countries", ["Brazil"])
+    _s.setdefault("applicant_countries", ["BR"])  # CHAR(2)[] column — ISO-2 code, not full name
     _s.setdefault("focus_regions", ["Brazil"])
-    _s.setdefault("focus_countries", ["Brazil"])
+    _s.setdefault("focus_countries", ["BR"])  # CHAR(2)[] column — ISO-2 code, not full name
 
 
 # ---------------------------------------------------------------------------
