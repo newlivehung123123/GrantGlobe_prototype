@@ -59,6 +59,7 @@ CONNECTORS = [
     ("Gates Grand Challenges", CONNECTORS_DIR / "gates_grand_challenges.py"),
     ("Templeton Foundation",   CONNECTORS_DIR / "templeton.py"),
     ("Simons Foundation",      CONNECTORS_DIR / "simons_foundation.py"),
+    ("Sloan Foundation",       CONNECTORS_DIR / "sloan_foundation.py"),
     ("Commonwealth Scholarships (CSC)", CONNECTORS_DIR / "csc_uk.py"),
     ("NordForsk",              CONNECTORS_DIR / "nordic_nordforsk.py"),
     ("NWO Netherlands",        CONNECTORS_DIR / "nwo.py"),
