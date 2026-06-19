@@ -375,7 +375,7 @@ def main() -> None:
         sys.exit(1)
 
     conn = psycopg2.connect(db_url)
-    inserted = updated = err = 0
+    inserted = updated = err = skipped_dupe = 0
     for record in records:
         try:
             result = _upsert(conn, record)
@@ -386,11 +386,19 @@ def main() -> None:
                 updated += 1
         except Exception as e:
             conn.rollback()
-            print(f"  DB error {record['source_url']}: {e}")
-            err += 1
+            if "grants_content_hash_key" in str(e):
+                # Harmless duplicate: NIFA listed the same NOFO under two
+                # detail URLs with identical title/deadline_raw/FON, so the
+                # source_url lookup missed the existing row and we tried to
+                # INSERT a second copy. Not a real failure.
+                skipped_dupe += 1
+            else:
+                print(f"  DB error {record['source_url']}: {e}")
+                err += 1
 
     conn.close()
-    print(f"\nDone: {inserted} inserted, {updated} updated, {err} errors.")
+    print(f"\nDone: {inserted} inserted, {updated} updated, "
+          f"{skipped_dupe} skipped (duplicate), {err} errors.")
 
 
 if __name__ == "__main__":

@@ -310,16 +310,20 @@ def main() -> None:
                 counts[result] += 1
             except Exception as e:
                 # Per-record commit (rather than per-200-batch) means a single
-                # bad record — e.g. a duplicate content_hash arising from two
-                # grants.gov opportunities that share the same id/title/deadline
-                # under different source_urls — only rolls back that one
-                # statement and is logged as an error, instead of aborting the
-                # whole run and losing every record already processed in the
-                # batch. Mirrors the per-record try/except pattern already
-                # used in usda_nifa.py and cihr_canada.py.
+                # bad record only rolls back that one statement instead of
+                # aborting the whole run and losing every record already
+                # processed in the batch. Mirrors the per-record try/except
+                # pattern already used in usda_nifa.py and cihr_canada.py.
                 conn.rollback()
-                print(f"  DB error {g.get('source_url')}: {e}", file=sys.stderr)
-                counts["errors"] += 1
+                if "grants_content_hash_key" in str(e):
+                    # Harmless duplicate: two grants.gov opportunities shared
+                    # the same id/title/deadline under different source_urls,
+                    # so the source_url lookup missed the existing row and we
+                    # tried to INSERT a second copy. Not a real failure.
+                    counts["skipped"] += 1
+                else:
+                    print(f"  DB error {g.get('source_url')}: {e}", file=sys.stderr)
+                    counts["errors"] += 1
             if i % 200 == 0 or i == len(deduped):
                 print(f"  Progress: {i}/{len(deduped)} (+{counts['inserted']} new)")
     finally:
