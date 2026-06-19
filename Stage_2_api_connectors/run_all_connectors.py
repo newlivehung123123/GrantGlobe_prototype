@@ -35,6 +35,8 @@ CONNECTORS = [
     # ── UK ───────────────────────────────────────────────────────────────────
     ("UKRI",                   CONNECTORS_DIR / "ukri.py"),
     ("Wellcome",               CONNECTORS_DIR / "wellcome.py"),
+    ("Royal Society",          CONNECTORS_DIR / "royal_society.py"),
+    ("Russell Sage Foundation", CONNECTORS_DIR / "russell_sage.py"),
     # ── Europe (individual countries) ────────────────────────────────────────
     ("ANR France",             CONNECTORS_DIR / "france_anr.py"),
     ("Research Council Finland (AKA)", CONNECTORS_DIR / "finland_aka.py"),
@@ -52,8 +54,11 @@ CONNECTORS = [
     ("HFSP",                   CONNECTORS_DIR / "hfsp.py"),
     # ── Asia Pacific ─────────────────────────────────────────────────────────
     ("JSPS Japan",             CONNECTORS_DIR / "jsps_japan.py"),
+    ("JST SATREPS (Japan)",    CONNECTORS_DIR / "jst_satreps.py"),
     ("Australia Grants",       CONNECTORS_DIR / "australia.py"),
     ("ARC Australia",          CONNECTORS_DIR / "arc_australia.py"),
+    # ── South America ────────────────────────────────────────────────────────
+    ("FAPESP (Brazil)",        CONNECTORS_DIR / "fapesp.py"),
     # ── Other ────────────────────────────────────────────────────────────────
     ("HHMI",                   CONNECTORS_DIR / "hhmi.py"),
     ("Gates Grand Challenges", CONNECTORS_DIR / "gates_grand_challenges.py"),
@@ -74,6 +79,55 @@ CONNECTORS = [
     ("Research Council Norway",CONNECTORS_DIR / "norway.py"),
     ("Long-Term Future Fund (LTFF)", CONNECTORS_DIR / "ltff.py"),
     ("Survival and Flourishing Fund (SFF)", CONNECTORS_DIR / "sff.py"),
+    # ── Think Tanks / Policy Institutes ──────────────────────────────────────
+    ("Pacific Forum",           CONNECTORS_DIR / "pacific_forum.py"),
+    ("RAND CAST Fellowship",    CONNECTORS_DIR / "rand_cast.py"),
+    ("GovAI",                   CONNECTORS_DIR / "govai.py"),
+    ("Belfer Center (Harvard)", CONNECTORS_DIR / "belfer_center.py"),
+    ("Mila AI Policy Fellowship (Canada)", CONNECTORS_DIR / "mila_ai_policy.py"),
+    # ── Harvard University (schools / centers) ──────────────────────────────
+    ("Radcliffe Institute (Harvard)", CONNECTORS_DIR / "radcliffe_institute.py"),
+    ("Berkman Klein Center (Harvard)", CONNECTORS_DIR / "berkman_klein.py"),
+    ("Weatherhead Center (Harvard)", CONNECTORS_DIR / "weatherhead_center.py"),
+    ("Ash Center (Harvard)",         CONNECTORS_DIR / "ash_center.py"),
+    ("Safra Center (Harvard)",       CONNECTORS_DIR / "safra_center.py"),
+    # ── University of Oxford ─────────────────────────────────────────────────
+    ("Institute for Ethics in AI (Oxford)", CONNECTORS_DIR / "oxford_ethics_ai.py"),
+    ("AfOx Visiting Fellowship (Oxford)",   CONNECTORS_DIR / "oxford_afox.py"),
+    # ── University of Cambridge ──────────────────────────────────────────────
+    ("CRASSH Visiting Fellowship (Cambridge)",   CONNECTORS_DIR / "crassh_cambridge.py"),
+    ("Lauterpacht Centre (Cambridge)",           CONNECTORS_DIR / "lauterpacht_centre.py"),
+    # ── Yale University ──────────────────────────────────────────────────────
+    ("Yale LGBT Studies Research Fellowship",    CONNECTORS_DIR / "yale_lgbts.py"),
+    ("Lewis Walpole Library (Yale)",              CONNECTORS_DIR / "lewis_walpole.py"),
+    # ── Princeton University ─────────────────────────────────────────────────
+    ("James Madison Program (Princeton)",         CONNECTORS_DIR / "princeton_madison.py"),
+    # ── Stanford University ──────────────────────────────────────────────────
+    ("Stanford Humanities Center",                CONNECTORS_DIR / "stanford_humanities.py"),
+    # ── Massachusetts Institute of Technology ───────────────────────────────
+    ("Knight Science Journalism Fellowship (MIT)", CONNECTORS_DIR / "mit_ksj.py"),
+    # ── University of California, Berkeley ───────────────────────────────────
+    ("Bancroft Library Sidney-Fryer Fellowship (UC Berkeley)", CONNECTORS_DIR / "berkeley_bancroft.py"),
+    # ── Columbia University ──────────────────────────────────────────────────
+    ("Knight-Bagehot Fellowship (Columbia)", CONNECTORS_DIR / "columbia_knight_bagehot.py"),
+    # ── New York University ──────────────────────────────────────────────────
+    ("Matthew Power Literary Reporting Award (NYU)", CONNECTORS_DIR / "nyu_matthew_power.py"),
+    # ── University of Chicago ────────────────────────────────────────────────
+    ("Pritzker Fellows Program (UChicago)", CONNECTORS_DIR / "uchicago_pritzker_fellows.py"),
+    # ── University of California, Los Angeles ────────────────────────────────
+    ("Gerald Loeb Awards (UCLA)", CONNECTORS_DIR / "ucla_gerald_loeb.py"),
+    # ── University College London ────────────────────────────────────────────
+    ("Liberating the Collections Fellowship (UCL)", CONNECTORS_DIR / "ucl_liberating_collections.py"),
+    # ── London School of Economics ───────────────────────────────────────────
+    ("Atlantic Fellows for Social and Economic Equity (LSE)", CONNECTORS_DIR / "lse_afsee.py"),
+    # ── University of Pennsylvania ───────────────────────────────────────────
+    ("CASI Visiting Scholars/Fellows Program (UPenn)", CONNECTORS_DIR / "penn_casi_visiting.py"),
+    # ── Cornell University ───────────────────────────────────────────────────
+    ("CGD Non-Resident Fellowship (Cornell)", CONNECTORS_DIR / "cornell_cgd_nonresident.py"),
+    # ── Brown University ─────────────────────────────────────────────────────
+    ("Howard Fellowship (Brown)", CONNECTORS_DIR / "brown_howard_foundation.py"),
+    # ── National University of Singapore ─────────────────────────────────────
+    ("Lee Kong Chian NUS-Stanford Fellowship (NUS)", CONNECTORS_DIR / "nus_lee_kong_chian.py"),
 ]
 
 

@@ -300,23 +300,33 @@ def main() -> None:
         return
 
     conn = _connect()
+    counts = {"inserted": 0, "updated": 0, "skipped": 0, "errors": 0}
     try:
-        counts = {"inserted": 0, "updated": 0, "skipped": 0}
-        BATCH = 200
-        for i in range(0, len(deduped), BATCH):
-            batch = deduped[i: i + BATCH]
-            with conn.cursor() as cur:
-                for g in batch:
+        for i, g in enumerate(deduped, 1):
+            try:
+                with conn.cursor() as cur:
                     result = _upsert_grant(cur, g)
-                    counts[result] += 1
-            conn.commit()
-            print(f"  Progress: {min(i+BATCH, len(deduped))}/{len(deduped)} "
-                  f"(+{counts['inserted']} new)")
+                conn.commit()
+                counts[result] += 1
+            except Exception as e:
+                # Per-record commit (rather than per-200-batch) means a single
+                # bad record — e.g. a duplicate content_hash arising from two
+                # grants.gov opportunities that share the same id/title/deadline
+                # under different source_urls — only rolls back that one
+                # statement and is logged as an error, instead of aborting the
+                # whole run and losing every record already processed in the
+                # batch. Mirrors the per-record try/except pattern already
+                # used in usda_nifa.py and cihr_canada.py.
+                conn.rollback()
+                print(f"  DB error {g.get('source_url')}: {e}", file=sys.stderr)
+                counts["errors"] += 1
+            if i % 200 == 0 or i == len(deduped):
+                print(f"  Progress: {i}/{len(deduped)} (+{counts['inserted']} new)")
     finally:
         conn.close()
 
     print(f"\nDone: {counts['inserted']} inserted, {counts['updated']} updated, "
-          f"{counts['skipped']} skipped.")
+          f"{counts['skipped']} skipped, {counts['errors']} errors.")
 
 
 if __name__ == "__main__":
