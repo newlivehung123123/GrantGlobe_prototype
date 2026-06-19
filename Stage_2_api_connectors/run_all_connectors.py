@@ -31,6 +31,7 @@ CONNECTORS = [
     ("SBIR",                   CONNECTORS_DIR / "sbir.py"),
     # ── EU / Multilateral ────────────────────────────────────────────────────
     ("EU Funding Portal",      CONNECTORS_DIR / "eu_funding_portal.py"),
+    ("ERC",                    CONNECTORS_DIR / "erc.py"),
     # ── UK ───────────────────────────────────────────────────────────────────
     ("UKRI",                   CONNECTORS_DIR / "ukri.py"),
     ("Wellcome",               CONNECTORS_DIR / "wellcome.py"),
