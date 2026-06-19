@@ -33,6 +33,7 @@ CONNECTORS = [
     ("EU Funding Portal",      CONNECTORS_DIR / "eu_funding_portal.py"),
     # ── UK ───────────────────────────────────────────────────────────────────
     ("UKRI",                   CONNECTORS_DIR / "ukri.py"),
+    ("Wellcome",               CONNECTORS_DIR / "wellcome.py"),
     # ── Europe (individual countries) ────────────────────────────────────────
     ("ANR France",             CONNECTORS_DIR / "france_anr.py"),
     ("Research Council Finland (AKA)", CONNECTORS_DIR / "finland_aka.py"),
