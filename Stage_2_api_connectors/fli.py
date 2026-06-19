@@ -8,8 +8,7 @@ extreme large-scale risks. Its primary focus areas are artificial intelligence,
 biotechnology, and nuclear weapons. FLI funds external research through
 fellowships and competitive grant programmes.
 
-This connector covers three annually recurring fellowship programmes in AI
-safety and governance:
+This connector covers four recurring funding programmes:
 
 1. Vitalik Buterin PhD Fellowship in AI Existential Safety
    Five-year fully funded PhD fellowships for students working on technical
@@ -26,10 +25,18 @@ safety and governance:
    AI governance, including cooperation mechanisms and risk reduction.
    Annual deadline: ~21 November.
 
-All three programmes are currently closed for the 2025 cycle. Deadlines
-below are the next expected annual opening, based on prior cycle dates.
-FLI does not accept unsolicited research grant applications outside these
-fellowship and RFP processes.
+4. Digital Media Accelerator
+   Rolling-basis funding and support for digital content creators (YouTube,
+   TikTok, newsletter/Substack, podcast) producing work on AI safety and
+   risk. Explicitly does not require institutional affiliation — eligibility
+   rests on an existing following and/or compelling content ideas, not
+   academic credentials.
+
+The three fellowship programmes are currently closed for the 2025 cycle.
+Deadlines below are the next expected annual opening, based on prior cycle
+dates. FLI does not accept unsolicited research grant applications outside
+these fellowship and RFP processes, but the Digital Media Accelerator is a
+standing rolling call independent of the fellowship cycles.
 
 Source: https://futureoflife.org/our-work/grantmaking-work/
 Portal: http://grants.futureoflife.org/
@@ -205,6 +212,49 @@ SCHEMES: list[dict] = [
             "submitted via http://grants.futureoflife.org/."
         ),
     },
+    {
+        # ── 4. Digital Media Accelerator ──────────────────────────────────────
+        "title":    "FLI Digital Media Accelerator",
+        "url":      "https://futureoflife.org/project/digital-media-accelerator/",
+        "portal":   "https://futureoflife.org/project/digital-media-accelerator/",
+        # Rolling programme, no fixed deadline — sentinel-date convention
+        # shared with LTFF/EAIF/Emergent Ventures elsewhere in this codebase.
+        "deadline": datetime.date(2035, 12, 31),
+        "deadline_raw": "Rolling (no fixed deadline)",
+        "open_threshold_days": 3500,
+        "cycle_years": 5,
+        "grant_types": ["Project Grant", "Creator Support"],
+        "individual": [
+            "Content Creator", "Independent Researcher", "Journalist",
+        ],
+        "org_types":  [],
+        "amount_min": None,
+        "amount_max": None,
+        "currency":   "USD",
+        "sectors": [
+            "Artificial Intelligence", "AI Safety",
+            "Existential Risk Reduction", "Science Communication",
+        ],
+        "applicant_countries": [],
+        "focus_regions":       ["Global"],
+        "focus_countries":     [],
+        "desc": (
+            "The Digital Media Accelerator is a rolling-basis funding and support "
+            "programme for digital content creators producing work on AI safety "
+            "and AI risk, run by the Future of Life Institute. Eligible formats "
+            "include YouTube channels, TikTok accounts, Substack or other "
+            "newsletters, and podcasts. The programme explicitly does not require "
+            "institutional affiliation: eligibility is based on an applicant's "
+            "existing following and/or the strength of their content ideas about "
+            "AI safety, rather than academic or institutional credentials. "
+            "Applications are accepted on a rolling basis with no fixed deadline. "
+            "Returning applicants may use an Airtable-based Applicant Portal. Due "
+            "to the volume of submissions, FLI notes it is not able to give "
+            "detailed feedback on every application. Enquiries can be directed to "
+            "maggie@futureoflife.org. Apply via "
+            "https://futureoflife.org/project/digital-media-accelerator/."
+        ),
+    },
 ]
 
 
@@ -278,7 +328,9 @@ def _build_record(scheme: dict, today: datetime.date) -> dict:
         "application_portal_url":    scheme["portal"],
         "description":               scheme["desc"],
         "application_deadline":      deadline_iso,
-        "application_deadline_raw":  f"{deadline.day} {deadline.strftime('%B %Y')}",
+        "application_deadline_raw":  scheme.get(
+            "deadline_raw", f"{deadline.day} {deadline.strftime('%B %Y')}"
+        ),
         "grant_opening_date":        opening.isoformat(),
         "current_status":            status,
         "source_language":           "en",

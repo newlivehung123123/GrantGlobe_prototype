@@ -62,6 +62,7 @@ CONNECTORS = [
     # ── Other ────────────────────────────────────────────────────────────────
     ("HHMI",                   CONNECTORS_DIR / "hhmi.py"),
     ("Gates Grand Challenges", CONNECTORS_DIR / "gates_grand_challenges.py"),
+    ("Coefficient Giving",     CONNECTORS_DIR / "coefficient_giving.py"),
     ("Templeton Foundation",   CONNECTORS_DIR / "templeton.py"),
     ("Simons Foundation",      CONNECTORS_DIR / "simons_foundation.py"),
     ("Sloan Foundation",       CONNECTORS_DIR / "sloan_foundation.py"),
@@ -79,6 +80,14 @@ CONNECTORS = [
     ("Research Council Norway",CONNECTORS_DIR / "norway.py"),
     ("Long-Term Future Fund (LTFF)", CONNECTORS_DIR / "ltff.py"),
     ("Survival and Flourishing Fund (SFF)", CONNECTORS_DIR / "sff.py"),
+    # ── AI Safety Funders (aisafety.com/funding batch) ───────────────────────
+    ("Foresight Institute",     CONNECTORS_DIR / "foresight_institute.py"),
+    ("IFP Launch Sequence",      CONNECTORS_DIR / "ifp_launch_sequence.py"),
+    ("EAIF",                     CONNECTORS_DIR / "eaif.py"),
+    ("AI Alignment Foundation",  CONNECTORS_DIR / "ai_alignment_foundation.py"),
+    ("CLR Fund",                 CONNECTORS_DIR / "clr_fund.py"),
+    ("Vista Institute for AI Policy", CONNECTORS_DIR / "vista_institute.py"),
+    ("Macroscopic Ventures",     CONNECTORS_DIR / "macroscopic_ventures.py"),
     # ── Think Tanks / Policy Institutes ──────────────────────────────────────
     ("Pacific Forum",           CONNECTORS_DIR / "pacific_forum.py"),
     ("RAND CAST Fellowship",    CONNECTORS_DIR / "rand_cast.py"),
