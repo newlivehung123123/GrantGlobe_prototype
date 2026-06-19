@@ -61,6 +61,8 @@ CONNECTORS = [
     ("Simons Foundation",      CONNECTORS_DIR / "simons_foundation.py"),
     ("Sloan Foundation",       CONNECTORS_DIR / "sloan_foundation.py"),
     ("Marsden Fund (NZ)",      CONNECTORS_DIR / "marsden_fund.py"),
+    ("Burroughs Wellcome Fund",CONNECTORS_DIR / "bwf.py"),
+    ("Schmidt Sciences",       CONNECTORS_DIR / "schmidt_sciences.py"),
     ("Commonwealth Scholarships (CSC)", CONNECTORS_DIR / "csc_uk.py"),
     ("NordForsk",              CONNECTORS_DIR / "nordic_nordforsk.py"),
     ("NWO Netherlands",        CONNECTORS_DIR / "nwo.py"),
