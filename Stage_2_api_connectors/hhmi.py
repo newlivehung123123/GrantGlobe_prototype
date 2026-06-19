@@ -323,13 +323,15 @@ def _upsert(conn, record: dict) -> str:
                 grant_title = %s, description = %s,
                 application_deadline = %s, application_deadline_raw = %s,
                 grant_opening_date = %s, current_status = %s,
-                crawl_date = %s, content_hash = %s
+                crawl_date = %s, content_hash = %s,
+                domain = %s
                WHERE id = %s""",
             (
                 db_rec["grant_title"], db_rec["description"],
                 db_rec["application_deadline"], db_rec["application_deadline_raw"],
                 db_rec["grant_opening_date"], db_rec["current_status"],
                 db_rec["crawl_date"], db_rec["content_hash"],
+                db_rec["domain"],
                 existing[0],
             ),
         )

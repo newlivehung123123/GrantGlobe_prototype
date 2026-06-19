@@ -299,12 +299,14 @@ def _upsert(conn, record: dict) -> str:
             """UPDATE grants SET
                 grant_title = %s, description = %s,
                 application_deadline = %s, application_deadline_raw = %s,
-                current_status = %s, crawl_date = %s, content_hash = %s
+                current_status = %s, crawl_date = %s, content_hash = %s,
+                domain = %s
                WHERE id = %s""",
             (
                 record["grant_title"], record["description"],
                 record["application_deadline"], record["application_deadline_raw"],
                 record["current_status"], record["crawl_date"], record["content_hash"],
+                record["domain"],
                 existing[0],
             ),
         )
