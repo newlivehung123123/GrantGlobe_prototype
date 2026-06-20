@@ -221,18 +221,11 @@ def _upsert(conn, record: dict) -> str:
     cur = conn.cursor()
     cur.execute("SELECT id FROM grants WHERE source_url = %s", (record["source_url"],))
     if cur.fetchone():
+        _upd_cols = [c for c in record if c != "source_url"]
+        _set_clause = ", ".join(f"{c} = %({c})s" for c in _upd_cols)
         cur.execute(
-            """UPDATE grants SET
-                grant_title = %s, description = %s,
-                application_deadline = %s, application_deadline_raw = %s,
-                crawl_date = %s, content_hash = %s
-               WHERE source_url = %s""",
-            (
-                record["grant_title"], record["description"],
-                record["application_deadline"], record["application_deadline_raw"],
-                record["crawl_date"], record["content_hash"],
-                record["source_url"],
-            ),
+            f"UPDATE grants SET {_set_clause} WHERE source_url = %(source_url)s",
+            record,
         )
         return "updated"
     else:

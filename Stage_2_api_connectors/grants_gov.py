@@ -34,6 +34,19 @@ import requests
 SEARCH_URL = "https://apply07.grants.gov/grantsws/rest/opportunities/search/"
 DETAIL_BASE = "https://grants.gov/search-results-detail/"
 
+# grants.gov occasionally enters a planned-maintenance state where the public
+# site (and, we have observed, the search API) silently serves degraded or
+# placeholder data instead of erroring out — e.g. on 2026-06-20 the search API
+# returned a closeDate of "06/22/2026" (the exact maintenance end-date) for 32
+# otherwise-unrelated opportunities. A normal run shares a handful of
+# legitimate recurring deadlines (e.g. standard NIH receipt dates) across many
+# records, so we can't just flag "too many records share one date" — but we
+# CAN check directly whether the public site is in its maintenance redirect,
+# since that's the same condition that produces the bad data. If so, abort
+# without writing anything, so existing good data in the DB is left alone.
+MAINTENANCE_CHECK_URL = "https://grants.gov/"
+MAINTENANCE_MARKER = "grants-gov.blogspot.com"
+
 # Opportunity statuses to ingest
 KEEP_STATUSES = {"posted", "forecasted"}
 
@@ -103,6 +116,22 @@ def _parse_date(date_str: str | None) -> str | None:
         except ValueError:
             continue
     return None
+
+
+def _in_maintenance_mode() -> bool:
+    """
+    Probe grants.gov directly for its known maintenance-redirect signature
+    before trusting anything the search API returns. Fails safe: if the probe
+    itself errors out (network issue, timeout, etc.) we assume NOT in
+    maintenance, since that's the existing/previous behaviour and we don't
+    want an unrelated network blip to silently stop every future run.
+    """
+    try:
+        resp = requests.get(MAINTENANCE_CHECK_URL, timeout=15, allow_redirects=True)
+        return MAINTENANCE_MARKER in resp.url or MAINTENANCE_MARKER in resp.text[:2000]
+    except Exception as e:
+        print(f"  WARNING: maintenance-mode probe failed ({e}); proceeding anyway.")
+        return False
 
 
 def _fetch_all_opportunities() -> list[dict]:
@@ -263,6 +292,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Grants.gov → GrantGlobe ingestor")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+
+    if _in_maintenance_mode():
+        print("  grants.gov is in its announced maintenance window "
+              "(redirects to grants-gov.blogspot.com) — skipping this run "
+              "entirely to avoid ingesting placeholder/degraded data. "
+              "Existing records are left untouched.")
+        sys.exit(0)
 
     print("Fetching opportunities from grants.gov …")
     opps = _fetch_all_opportunities()

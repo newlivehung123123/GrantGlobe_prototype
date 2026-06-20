@@ -321,18 +321,11 @@ def _upsert(conn, record: dict) -> str:
     )
     existing = cur.fetchone()
     if existing:
+        _upd_cols = [c for c in record if c != "source_url"]
+        _set_clause = ", ".join(f"{c} = %({c})s" for c in _upd_cols)
         cur.execute(
-            """UPDATE grants SET
-                grant_title = %s, description = %s,
-                application_deadline = %s, application_deadline_raw = %s,
-                current_status = %s, crawl_date = %s, content_hash = %s
-               WHERE id = %s""",
-            (
-                record["grant_title"], record["description"],
-                record["application_deadline"], record["application_deadline_raw"],
-                record["current_status"], record["crawl_date"], record["content_hash"],
-                existing[0],
-            ),
+            f"UPDATE grants SET {_set_clause} WHERE id = %(id)s",
+            {**record, "id": existing[0]},
         )
         return "updated"
     cols = list(record.keys())
