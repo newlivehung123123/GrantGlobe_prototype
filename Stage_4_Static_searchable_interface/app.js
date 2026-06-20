@@ -273,9 +273,15 @@ function renderCards(grants) {
     const cls         = (grant.current_status || 'unknown').toLowerCase().replace(/\s+/g, '-');
     const statusLabel = grant.current_status || 'Unknown';
 
-    // Deadline text
+    // Deadline text — some funders accept applications on a rolling basis
+    // with no real deadline; their connector sets application_deadline_raw
+    // to say so even though application_deadline itself holds a far-future
+    // sentinel date (needed internally to keep the record's status fresh).
+    // Prefer that raw text over the literal date whenever it says "rolling".
     let deadlineText;
-    if (grant.application_deadline) {
+    if (grant.application_deadline_raw && /rolling/i.test(grant.application_deadline_raw)) {
+      deadlineText = 'Rolling deadline';
+    } else if (grant.application_deadline) {
       deadlineText = 'Deadline: ' + formatDate(grant.application_deadline);
     } else if (grant.current_status === 'Rolling') {
       deadlineText = 'Rolling deadline';
@@ -335,9 +341,13 @@ function openModal(grant) {
   const statusLabel = grant.current_status || 'Unknown';
 
   // ── Deadline ────────────────────────────────────────────────────────
-  const deadlineText = grant.application_deadline
-    ? formatDate(grant.application_deadline)
-    : 'TBC';
+  // Same rolling-basis check as the card view — see comment there.
+  const isRolling = grant.application_deadline_raw && /rolling/i.test(grant.application_deadline_raw);
+  const deadlineText = isRolling
+    ? 'Rolling (no fixed deadline)'
+    : grant.application_deadline
+      ? formatDate(grant.application_deadline)
+      : 'TBC';
   const deadlineTypeNote =
     grant.application_deadline_type === 'estimated'
       ? ' <span style="color:var(--clr-text-muted);font-size:13px;">(estimated)</span>'

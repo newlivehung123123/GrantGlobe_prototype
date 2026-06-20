@@ -179,6 +179,7 @@ SCHEMES: list[dict] = [
         # is always "Open". _advance_deadline will advance by cycle_years=4
         # once the sentinel passes, keeping the status perpetually open.
         "deadline": datetime.date(2030, 12, 31),
+        "deadline_raw": "Rolling (no fixed deadline)",
         "open_threshold_days": 1700,                  # always open (rolling)
         "cycle_years": 4,
         "grant_types": ["Travel Grant", "Research Grant"],
@@ -285,7 +286,9 @@ def _build_record(scheme: dict, today: datetime.date) -> dict:
         "application_portal_url":    scheme["portal"],
         "description":               scheme["desc"],
         "application_deadline":      deadline_iso,
-        "application_deadline_raw":  f"{deadline.day} {deadline.strftime('%B %Y')}",
+        "application_deadline_raw":  scheme.get(
+            "deadline_raw", f"{deadline.day} {deadline.strftime('%B %Y')}"
+        ),
         "grant_opening_date":        opening.isoformat(),
         "current_status":            status,
         "source_language":           "en",

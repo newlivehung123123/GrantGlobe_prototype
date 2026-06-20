@@ -147,6 +147,7 @@ SCHEMES: list[dict] = [
         # three months before the intended stay; modeled with a
         # far-future sentinel, as in emergent_ventures.py/ltff.py.
         "deadline": datetime.date(2035, 12, 31),
+        "deadline_raw": "Rolling (no fixed deadline; submit at least 3 months before intended stay)",
         "open_threshold_days": 3500,
         "cycle_years": 1,
         "grant_types": ["Mobility Grant"],

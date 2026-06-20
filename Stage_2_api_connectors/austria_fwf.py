@@ -57,6 +57,7 @@ SCHEMES: list[dict] = [
         # Continuously open — no fixed deadline; modeled with a
         # far-future sentinel, as in emergent_ventures.py/ltff.py.
         "deadline": datetime.date(2035, 12, 31),
+        "deadline_raw": "Rolling (no fixed deadline)",
         "open_threshold_days": 3500,
         "cycle_years": 1,
         "grant_types": ["Research Grant"],
