@@ -88,6 +88,7 @@ CONNECTORS = [
     ("CODESRIA",               CONNECTORS_DIR / "africa_codesria.py"),
     ("African Academy of Sciences (AAS)", CONNECTORS_DIR / "africa_aas.py"),
     ("NRF South Africa",       CONNECTORS_DIR / "southafrica_nrf.py"),
+    ("AIMS",                   CONNECTORS_DIR / "africa_aims.py"),
     # ── Other ────────────────────────────────────────────────────────────────
     ("HHMI",                   CONNECTORS_DIR / "hhmi.py"),
     ("Gates Grand Challenges", CONNECTORS_DIR / "gates_grand_challenges.py"),
