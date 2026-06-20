@@ -272,15 +272,15 @@ def _parse_grants_from_html(html_text: str, today: datetime.date) -> list[dict]:
                 except ValueError:
                     continue
             elif vague_upcoming:
-                status = "Upcoming"
+                status = "Forthcoming"
             else:
                 continue  # Truly closed, skip
         elif deadline_iso:
             try:
                 if datetime.date.fromisoformat(deadline_iso) < today:
                     # Past deadline — still include as the grant may be rolling
-                    # but mark as Upcoming (next cycle)
-                    status = "Upcoming"
+                    # but mark as Forthcoming (next cycle)
+                    status = "Forthcoming"
                     deadline_iso = None
                     deadline_raw = None
                 else:
@@ -288,9 +288,9 @@ def _parse_grants_from_html(html_text: str, today: datetime.date) -> list[dict]:
             except ValueError:
                 status = "Open"
         elif vague_upcoming:
-            status = "Upcoming"
+            status = "Forthcoming"
         else:
-            status = "Upcoming"
+            status = "Forthcoming"
 
         # --- Description: first <p> in the 1500 chars after h3 ---
         desc_m = re.search(r"<p[^>]*>(.*?)</p>", post_block[:1500], re.DOTALL | re.IGNORECASE)

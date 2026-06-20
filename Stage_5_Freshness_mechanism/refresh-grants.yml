@@ -2,7 +2,7 @@
 #
 # On every run this workflow:
 #   1. Exports approved grants from the cloud PostgreSQL database to grants.json
-#   2. Deploys the entire Stage_4_Static_Searchable_Interface/ directory to
+#   2. Deploys the entire Stage_4_Static_searchable_interface/ directory to
 #      GitHub Pages, so the public interface always reflects the latest data.
 #
 # No grants.json is committed back to the repository — the Pages deployment
@@ -65,22 +65,22 @@ jobs:
       # ── 4. Export grants from the database to grants.json ──────────────────
       #
       # export_grants.py reads DATABASE_URL from the environment and writes
-      # Stage_4_Static_Searchable_Interface/data/grants.json.
+      # Stage_4_Static_searchable_interface/data/grants.json.
       # Remove --include-closed if you want to exclude Closed grants (default).
       - name: Export grants to JSON
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        working-directory: Stage_4_Static_Searchable_Interface
+        working-directory: Stage_4_Static_searchable_interface
         run: python export_grants.py
 
       # ── 5. Upload the static site as a Pages artifact ──────────────────────
       #
-      # This packages the entire Stage_4_Static_Searchable_Interface/ directory
+      # This packages the entire Stage_4_Static_searchable_interface/ directory
       # (including the freshly generated data/grants.json) for deployment.
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: Stage_4_Static_Searchable_Interface
+          path: Stage_4_Static_searchable_interface
 
       # ── 6. Deploy to GitHub Pages ───────────────────────────────────────────
       - name: Deploy to GitHub Pages

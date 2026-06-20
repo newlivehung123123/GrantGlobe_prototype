@@ -184,10 +184,25 @@ function populateDynamicFilters(grants) {
   });
   maybeAddUnspecified(orgEl, hasNoOrgType);
 
-  // Status — add "Not specified" if any record has no current_status
-  const knownStatuses = new Set(['Open', 'Upcoming', 'Rolling', 'Closed']);
-  const hasNoStatus = grants.some(g => !g.current_status || !knownStatuses.has(g.current_status));
-  if (hasNoStatus) maybeAddUnspecified(document.getElementById('filter-status'), true);
+  // Status — built dynamically from whatever current_status values actually
+  // appear in the data, same as Region/Sector/Org Type above. This avoids
+  // silently dropping records into "Not specified" whenever a connector
+  // introduces a new status string (e.g. "Forthcoming", "Invitation Only")
+  // that a hardcoded list hasn't been updated to recognise.
+  const statuses = new Set();
+  let hasNoStatus = false;
+  grants.forEach(g => {
+    if (g.current_status) statuses.add(g.current_status);
+    else hasNoStatus = true;
+  });
+  const statusEl = document.getElementById('filter-status');
+  [...statuses].sort().forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    statusEl.appendChild(opt);
+  });
+  maybeAddUnspecified(statusEl, hasNoStatus);
 }
 
 // ── Formatting helpers ──────────────────────────────────────────────────────
@@ -255,7 +270,7 @@ function renderCards(grants) {
   const fragment = document.createDocumentFragment();
 
   grants.forEach(grant => {
-    const cls         = (grant.current_status || 'unknown').toLowerCase();
+    const cls         = (grant.current_status || 'unknown').toLowerCase().replace(/\s+/g, '-');
     const statusLabel = grant.current_status || 'Unknown';
 
     // Deadline text
@@ -444,11 +459,10 @@ function applySearchAndFilters() {
 
   // Step 2 — hard filters (exact-match; skipped when the select is at "All …")
   // '__unspecified__' sentinel matches records with no value in that field.
-  const knownStatuses = new Set(['Open', 'Upcoming', 'Rolling', 'Closed']);
   const hardFiltered = state.allGrants.filter(g => {
     // Status
     if (status === '__unspecified__') {
-      if (g.current_status && knownStatuses.has(g.current_status)) return false;
+      if (g.current_status) return false;
     } else if (status !== '') {
       if (g.current_status !== status) return false;
     }

@@ -348,7 +348,8 @@ input {
   color: #065F46;
 }
 
-.badge--upcoming {
+.badge--upcoming,
+.badge--forthcoming {
   background: #FEF3C7;
   color: #92400E;
 }
@@ -361,6 +362,11 @@ input {
 .badge--closed {
   background: #F3F4F6;
   color: #6B7280;
+}
+
+.badge--invitation-only {
+  background: #EDE9FE;
+  color: #5B21B6;
 }
 
 .badge--others,
