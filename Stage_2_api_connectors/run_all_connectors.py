@@ -201,6 +201,47 @@ def run_script(name: str, path: Path, dry_run: bool) -> bool:
     return True
 
 
+def close_stale_records() -> None:
+    """
+    Flip current_status to 'Closed' for any approved record whose deadline
+    has already passed. A connector only updates a record when its source
+    URL still appears in the funder's live listing — once a call drops off
+    that listing (which usually happens around its deadline, sometimes
+    before the connector's own filtering logic would have caught it), the
+    record's status is never revisited and would otherwise sit 'Open'
+    indefinitely. This runs every cycle, right before export, so the
+    exported site never shows an expired grant as open.
+    """
+    print(f"\n{'='*60}")
+    print("  Closing records past their deadline")
+    print(f"{'='*60}")
+    try:
+        import psycopg2
+    except ImportError:
+        print("  WARNING: psycopg2 not available — skipping stale-status check.")
+        return
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        print("  WARNING: DATABASE_URL not set — skipping stale-status check.")
+        return
+    try:
+        conn = psycopg2.connect(db_url)
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE grants
+            SET current_status = 'Closed'
+            WHERE review_status = 'approved'
+              AND current_status != 'Closed'
+              AND application_deadline IS NOT NULL
+              AND application_deadline < CURRENT_DATE
+        """)
+        print(f"  Closed {cur.rowcount} stale record(s).")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"  WARNING: stale-status check failed: {e}")
+
+
 def run_export(dry_run: bool) -> bool:
     """Run export_grants.py."""
     print(f"\n{'='*60}")
@@ -272,6 +313,7 @@ def main() -> None:
         results[name] = run_script(name, path, args.dry_run)
 
     if not args.dry_run:
+        close_stale_records()
         export_ok = run_export(args.dry_run)
         if export_ok and not args.skip_push:
             push_to_github()
