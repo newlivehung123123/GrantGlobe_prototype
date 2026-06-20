@@ -281,7 +281,7 @@ def _parse_challenge(html: str, url: str, today: datetime.date) -> dict | None:
         "geographic_focus_countries": focus_countries,
         "organisation_types":       [
             "University", "Research Institution",
-            "Non-profit Organisation", "For-profit Company",
+            "Non-Profit Organisation", "For-Profit Company",
         ],
         "individual_eligibility":   [
             "Faculty Researcher", "Early Career Researcher", "Innovator",

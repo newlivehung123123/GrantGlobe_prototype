@@ -84,7 +84,7 @@ SCHEMES: list[dict] = [
         "open_threshold_days": 60,
         "final_call": None,
         "grant_types":  ["Research Grant"],
-        "individual":   ["Faculty Researcher", "Senior Researcher", "Mid-career Researcher"],
+        "individual":   ["Faculty Researcher", "Senior Researcher", "Mid-Career Researcher"],
         "org_types":    ["University", "Research Institution"],
         "sectors":      ["Research & Innovation", "Science & Technology", "Health Sciences",
                          "Social Sciences & Humanities"],

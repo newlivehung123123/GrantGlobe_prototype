@@ -105,7 +105,7 @@ SCHEMES: list[dict] = [
         "url":         f"{BASE}/research-funding/schemes/wellcome-career-development-awards",
         "next_cycle":  datetime.date(2026, 7, 28),   # confirmed: Jul 28, 2026
         "grant_types": ["Research Grant", "Fellowship"],
-        "individual":  ["Mid-career Researcher", "Faculty Researcher"],
+        "individual":  ["Mid-Career Researcher", "Faculty Researcher"],
         "org_types":   ["University", "Research Institution"],
         "sectors":     ["Health Sciences", "Research & Innovation", "Science & Technology"],
         "desc": (

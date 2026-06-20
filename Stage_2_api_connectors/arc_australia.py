@@ -89,7 +89,7 @@ SCHEMES = [
         "next_close":  datetime.date(2026, 11, 5),   # typical: first week November
         "status_kw":   r'[Cc]losing?\s+date|[Cc]lose[sd]?\b|[Dd]eadline',
         "grant_types": ["Fellowship"],
-        "individual":  ["Mid-career Researcher"],
+        "individual":  ["Mid-Career Researcher"],
         "sectors":     ["Research & Innovation", "Science & Technology"],
         "org_types":   ["University"],
         "desc": (

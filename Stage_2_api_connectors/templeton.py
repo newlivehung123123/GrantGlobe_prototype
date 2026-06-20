@@ -76,7 +76,7 @@ SCHEMES: list[dict] = [
         "grant_types": ["Research Grant", "Project Grant"],
         "individual": [],                           # orgs only; individuals by invitation
         "org_types":  ["University", "Research Institution",
-                       "Non-profit Organisation", "Think Tank"],
+                       "Non-Profit Organisation", "Think Tank"],
         "sectors": [
             "Life Sciences", "Science & Technology",
             "Philosophy & Religion", "Social Sciences",
@@ -117,7 +117,7 @@ SCHEMES: list[dict] = [
         "grant_types": ["Research Grant", "Project Grant"],
         "individual": [],
         "org_types":  ["University", "Research Institution",
-                       "Non-profit Organisation", "Think Tank"],
+                       "Non-Profit Organisation", "Think Tank"],
         "sectors": [
             "Life Sciences", "Science & Technology",
             "Philosophy & Religion", "Social Sciences",
