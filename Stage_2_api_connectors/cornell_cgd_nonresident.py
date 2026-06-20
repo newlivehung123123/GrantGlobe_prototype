@@ -131,7 +131,7 @@ for _s in SCHEMES:
     _s.setdefault("currency", "USD")
     _s.setdefault("applicant_countries", [])
     _s.setdefault("focus_regions", [])
-    _s.setdefault("focus_countries", [])
+    _s.setdefault("focus_countries", ['US'])
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +213,7 @@ def _build_record(scheme: dict, today: datetime.date) -> dict:
         "currency":                  scheme["currency"],
         "thematic_sectors":          scheme["sectors"],
         "grant_types":               scheme["grant_types"],
-        "applicant_base_regions":    [],
+        "applicant_base_regions":    ["Global"],
         "geographic_focus_regions":  scheme["focus_regions"],
         "applicant_base_countries":  scheme["applicant_countries"],
         "geographic_focus_countries": scheme["focus_countries"],
