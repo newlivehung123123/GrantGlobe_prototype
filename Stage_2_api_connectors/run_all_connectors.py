@@ -52,6 +52,10 @@ CONNECTORS = [
     ("CIHR Canada",            CONNECTORS_DIR / "cihr_canada.py"),
     # ── International / Multilateral ─────────────────────────────────────────
     ("HFSP",                   CONNECTORS_DIR / "hfsp.py"),
+    ("AXA Research Fund",      CONNECTORS_DIR / "axa_research_fund.py"),
+    ("United Nations University (UNU)", CONNECTORS_DIR / "un_unu.py"),
+    ("UNESCO",                 CONNECTORS_DIR / "un_unesco.py"),
+    ("World Bank Group",       CONNECTORS_DIR / "worldbank_fellowships.py"),
     # ── Asia Pacific ─────────────────────────────────────────────────────────
     ("JSPS Japan",             CONNECTORS_DIR / "jsps_japan.py"),
     ("JSPS Invitational Fellowships (Japan)", CONNECTORS_DIR / "jsps_invitational.py"),
