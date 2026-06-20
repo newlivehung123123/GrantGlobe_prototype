@@ -83,6 +83,11 @@ CONNECTORS = [
     ("A*STAR Singapore",       CONNECTORS_DIR / "singapore_astar.py"),
     # ── South America ────────────────────────────────────────────────────────
     ("FAPESP (Brazil)",        CONNECTORS_DIR / "fapesp.py"),
+    # ── Africa ───────────────────────────────────────────────────────────────
+    ("TWAS",                   CONNECTORS_DIR / "africa_twas.py"),
+    ("CODESRIA",               CONNECTORS_DIR / "africa_codesria.py"),
+    ("African Academy of Sciences (AAS)", CONNECTORS_DIR / "africa_aas.py"),
+    ("NRF South Africa",       CONNECTORS_DIR / "southafrica_nrf.py"),
     # ── Other ────────────────────────────────────────────────────────────────
     ("HHMI",                   CONNECTORS_DIR / "hhmi.py"),
     ("Gates Grand Challenges", CONNECTORS_DIR / "gates_grand_challenges.py"),
