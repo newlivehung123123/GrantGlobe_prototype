@@ -89,8 +89,12 @@ CONNECTORS = [
     ("CCKF Doctoral Fellowships (Taiwan)", CONNECTORS_DIR / "taiwan_cckf.py"),
     ("NRF Singapore",          CONNECTORS_DIR / "singapore_nrf.py"),
     ("A*STAR Singapore",       CONNECTORS_DIR / "singapore_astar.py"),
-    # ── South America ────────────────────────────────────────────────────────
+    # ── South Asia ───────────────────────────────────────────────────────────
+    ("DST India",              CONNECTORS_DIR / "india_dst.py"),
+    # ── South America / Latin America ────────────────────────────────────────
     ("FAPESP (Brazil)",        CONNECTORS_DIR / "fapesp.py"),
+    ("ANID (Chile)",           CONNECTORS_DIR / "chile_anid.py"),
+    ("SECIHTI (Mexico)",       CONNECTORS_DIR / "mexico_secihti.py"),
     # ── Africa ───────────────────────────────────────────────────────────────
     ("TWAS",                   CONNECTORS_DIR / "africa_twas.py"),
     ("CODESRIA",               CONNECTORS_DIR / "africa_codesria.py"),
