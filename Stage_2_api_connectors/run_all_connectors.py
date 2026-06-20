@@ -61,6 +61,7 @@ CONNECTORS = [
     ("JST SATREPS (Japan)",    CONNECTORS_DIR / "jst_satreps.py"),
     ("Australia Grants",       CONNECTORS_DIR / "australia.py"),
     ("ARC Australia",          CONNECTORS_DIR / "arc_australia.py"),
+    ("Tāwhia te Mana (NZ)",    CONNECTORS_DIR / "newzealand_tawhia_te_mana.py"),
     ("IBS (Korea)",            CONNECTORS_DIR / "korea_ibs.py"),
     ("Korea Foundation",       CONNECTORS_DIR / "korea_foundation.py"),
     ("NSFC (China)",           CONNECTORS_DIR / "china_nsfc.py"),
