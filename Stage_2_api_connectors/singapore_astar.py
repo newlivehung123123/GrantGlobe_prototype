@@ -75,9 +75,9 @@ SCHEMES: list[dict] = [
             "Physical Sciences", "Engineering", "Science & Technology",
             "Research & Innovation",
         ],
-        "applicant_countries": ["Singapore"],
+        "applicant_countries": ["SG"],
         "focus_regions":       [],
-        "focus_countries":     ["Singapore"],
+        "focus_countries":     ["SG"],
         "desc": (
             "The Manufacturing, Trade & Connectivity Young Individual "
             "Research Grant (MTC YIRG) supports Singapore-based, "
@@ -120,9 +120,9 @@ SCHEMES: list[dict] = [
             "Research & Innovation", "Industry Collaboration",
             "Technology Translation", "Innovation Policy",
         ],
-        "applicant_countries": ["Singapore"],
+        "applicant_countries": ["SG"],
         "focus_regions": [],
-        "focus_countries": ["Singapore"],
+        "focus_countries": ["SG"],
         "desc": (
             "The Industry Alignment Fund – Industry Collaboration Projects "
             "(IAF-ICP) is a pan-domain grant scheme that supports public "

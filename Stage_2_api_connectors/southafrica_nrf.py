@@ -64,7 +64,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["South Africa"],
+        "focus_countries": ["ZA"],
         "desc": (
             "The NRF Freestanding and Innovation Postdoctoral "
             "Fellowships provide a two-year stipend, research funding, "

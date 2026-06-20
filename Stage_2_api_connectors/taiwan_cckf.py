@@ -83,9 +83,9 @@ SCHEMES: list[dict] = [
         "amount_max": None,
         "currency": "USD",
         "sectors": ["Chinese Studies", "Humanities", "Social Sciences"],
-        "applicant_countries": ["United States", "Canada", "Mexico"],
+        "applicant_countries": ["US", "CA", "MX"],
         "focus_regions": [],
-        "focus_countries": ["Taiwan", "China"],
+        "focus_countries": ["TW", "CN"],
         "desc": (
             "CCKF's American Region Research Grants support full-time "
             "faculty at academic institutions in the United States, "
@@ -111,9 +111,9 @@ SCHEMES: list[dict] = [
         "amount_max": 25000,
         "currency": "USD",
         "sectors": ["Chinese Studies", "Humanities", "Social Sciences"],
-        "applicant_countries": ["United States", "Canada", "Mexico"],
+        "applicant_countries": ["US", "CA", "MX"],
         "focus_regions": [],
-        "focus_countries": ["Taiwan", "China"],
+        "focus_countries": ["TW", "CN"],
         "desc": (
             "CCKF's American Region Doctoral Fellowships provide up to "
             "US$25,000 (paid in two installments) for one year of "
@@ -143,7 +143,7 @@ SCHEMES: list[dict] = [
         "sectors": ["Chinese Studies", "Humanities", "Social Sciences"],
         "applicant_countries": [],
         "focus_regions": ["Europe"],
-        "focus_countries": ["Taiwan", "China"],
+        "focus_countries": ["TW", "CN"],
         "desc": (
             "CCKF's European Region Research Grants support full-time "
             "faculty at academic institutions in Europe undertaking "
@@ -172,7 +172,7 @@ SCHEMES: list[dict] = [
         "sectors": ["Chinese Studies", "Humanities", "Social Sciences"],
         "applicant_countries": [],
         "focus_regions": ["Europe"],
-        "focus_countries": ["Taiwan", "China"],
+        "focus_countries": ["TW", "CN"],
         "desc": (
             "CCKF's European Region runs combined Fellowships for PhD "
             "Dissertations and Postdoctoral Research in Chinese Studies. "
@@ -204,12 +204,12 @@ SCHEMES: list[dict] = [
         "currency": "USD",
         "sectors": ["Chinese Studies", "Humanities", "Social Sciences"],
         "applicant_countries": [
-            "Japan", "South Korea", "Mongolia", "Philippines", "Thailand",
-            "Malaysia", "Vietnam", "Indonesia", "Myanmar", "Laos",
-            "Australia", "New Zealand",
+            "JP", "KR", "MN", "PH", "TH",
+            "MY", "VN", "ID", "MM", "LA",
+            "AU", "NZ",
         ],
         "focus_regions": [],
-        "focus_countries": ["Taiwan", "China"],
+        "focus_countries": ["TW", "CN"],
         "desc": (
             "CCKF's Asia-Pacific Region Research Grants support "
             "full-time faculty at academic institutions in Japan, "
@@ -241,7 +241,7 @@ SCHEMES: list[dict] = [
             "Eastern Europe", "Central Europe", "Southeast Asia",
             "South Asia", "Middle East", "Central Asia",
         ],
-        "focus_countries": ["Taiwan", "China"],
+        "focus_countries": ["TW", "CN"],
         "desc": (
             "CCKF's Developing Regions programme supports the "
             "development of new Chinese Studies programmes in regions "

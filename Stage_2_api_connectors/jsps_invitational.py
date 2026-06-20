@@ -81,7 +81,7 @@ SCHEMES: list[dict] = [
         "sectors": ["Science & Technology", "Research & Innovation"],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Japan"],
+        "focus_countries": ["JP"],
         "desc": DESC,
     },
     {
@@ -102,7 +102,7 @@ SCHEMES: list[dict] = [
         "sectors": ["Science & Technology", "Research & Innovation"],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Japan"],
+        "focus_countries": ["JP"],
         "desc": DESC,
     },
 ]

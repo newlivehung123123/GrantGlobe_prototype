@@ -103,9 +103,9 @@ SCHEMES: list[dict] = [
             "Science & Technology", "Research & Innovation",
             "Innovation Policy", "Technology Translation",
         ],
-        "applicant_countries": ["Singapore"],
+        "applicant_countries": ["SG"],
         "focus_regions": [],
-        "focus_countries": ["Singapore"],
+        "focus_countries": ["SG"],
         "desc": DESC,
     },
     {
@@ -129,7 +129,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Singapore"],
+        "focus_countries": ["SG"],
         "desc": (
             "The Singapore NRF Fellowship (NRFF) provides opportunities "
             "for outstanding early-career researchers of any nationality "
@@ -173,7 +173,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Singapore"],
+        "focus_countries": ["SG"],
         "desc": (
             "The NRF Investigatorship provides funding opportunities for "
             "established scientists and researchers to pursue "

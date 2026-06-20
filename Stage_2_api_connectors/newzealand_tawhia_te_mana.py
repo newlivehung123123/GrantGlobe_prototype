@@ -76,7 +76,7 @@ SCHEMES: list[dict] = [
         "sectors": ["Science & Technology", "Research & Innovation"],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["New Zealand"],
+        "focus_countries": ["NZ"],
         "desc": (
             "The New Zealand Mana Tūāpapa Future Leader Fellowship "
             "supports Aotearoa New Zealand's talented early-career "
@@ -114,7 +114,7 @@ SCHEMES: list[dict] = [
         "sectors": ["Science & Technology", "Research & Innovation"],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["New Zealand"],
+        "focus_countries": ["NZ"],
         "desc": (
             "The New Zealand Mana Tūānuku Research Leader Fellowship "
             "supports mid-career researchers in Aotearoa New Zealand to "
@@ -153,7 +153,7 @@ SCHEMES: list[dict] = [
         "sectors": ["Science & Technology", "Research & Innovation"],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["New Zealand"],
+        "focus_countries": ["NZ"],
         "desc": (
             "The New Zealand Mana Tūārangi Distinguished Researcher "
             "Fellowship supports researchers with expansive, "

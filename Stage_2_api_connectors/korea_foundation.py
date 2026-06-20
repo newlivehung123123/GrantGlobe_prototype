@@ -83,7 +83,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["South Korea"],
+        "focus_countries": ["KR"],
         "desc": (
             "The KF Scholarship for Graduate Studies (GS) provides "
             "scholarship support to M.A. students or PhD candidates in "
@@ -119,7 +119,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["South Korea"],
+        "focus_countries": ["KR"],
         "desc": (
             "The KF Fellowship for Postdoctoral Research (PF) supports "
             "the full-time research of emerging scholars who have "
@@ -160,7 +160,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["South Korea"],
+        "focus_countries": ["KR"],
         "desc": (
             "The KF Fellowship for Field Research (FR) provides eminent "
             "overseas Korean studies scholars and experts in relevant "

@@ -98,7 +98,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions":       [],
-        "focus_countries":     ["China"],
+        "focus_countries":     ["CN"],
         "desc": DESC,
     },
     {
@@ -122,7 +122,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions":       [],
-        "focus_countries":     ["China"],
+        "focus_countries":     ["CN"],
         "desc": DESC,
     },
     {
@@ -147,7 +147,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["China"],
+        "focus_countries": ["CN"],
         "desc": (
             "The Peking-Princeton Postdoctoral Program (PPPP), jointly "
             "run by Peking University and Princeton University, trains "
@@ -193,7 +193,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["China"],
+        "focus_countries": ["CN"],
         "desc": (
             "The PKU-IIASA International Postdoctoral Fellowship "
             "Program, jointly run by Peking University and the "

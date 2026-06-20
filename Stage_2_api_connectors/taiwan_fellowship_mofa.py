@@ -78,7 +78,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Taiwan"],
+        "focus_countries": ["TW"],
         "desc": (
             "The Taiwan Fellowship is established by Taiwan's Ministry "
             "of Foreign Affairs (MOFA) to award foreign experts and "

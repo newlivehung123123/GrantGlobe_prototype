@@ -111,7 +111,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["China"],
+        "focus_countries": ["CN"],
         "desc": DESC,
     },
 ]

@@ -67,7 +67,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Hong Kong"],
+        "focus_countries": ["HK"],
         "desc": (
             "The Research Institute for the Humanities (RIH) Postdoctoral "
             "Fellowship Program at the Chinese University of Hong Kong "
@@ -110,7 +110,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Hong Kong"],
+        "focus_countries": ["HK"],
         "desc": (
             "The CUHK Vice-Chancellor's PhD Scholarship Scheme offers "
             "the Chinese University of Hong Kong's flagship scholarship "

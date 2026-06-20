@@ -73,8 +73,8 @@ SCHEMES: list[dict] = [
             "Research & Innovation",
         ],
         "applicant_countries": [
-            "Nigeria", "Kenya", "Ghana", "South Africa", "Ethiopia",
-            "Tanzania", "Uganda", "Senegal", "Rwanda", "Zambia",
+            "NG", "KE", "GH", "ZA", "ET",
+            "TZ", "UG", "SN", "RW", "ZM",
         ],
         "focus_regions": [],
         "focus_countries": [],
@@ -119,9 +119,9 @@ SCHEMES: list[dict] = [
             "Research & Innovation",
         ],
         "applicant_countries": [
-            "Afghanistan", "Bangladesh", "Kenya", "Nigeria", "Pakistan",
-            "Philippines", "India", "Ghana", "Tanzania", "Uganda",
-            "Nepal", "Ethiopia", "Mozambique", "Cambodia", "Myanmar",
+            "AF", "BD", "KE", "NG", "PK",
+            "PH", "IN", "GH", "TZ", "UG",
+            "NP", "ET", "MZ", "KH", "MM",
         ],
         "focus_regions": [],
         "focus_countries": [],

@@ -85,7 +85,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions":       [],
-        "focus_countries":     ["Taiwan"],
+        "focus_countries":     ["TW"],
         "desc": DESC,
     },
     {
@@ -108,7 +108,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions":       [],
-        "focus_countries":     ["Taiwan"],
+        "focus_countries":     ["TW"],
         "desc": DESC,
     },
     {
@@ -132,7 +132,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Taiwan"],
+        "focus_countries": ["TW"],
         "desc": (
             "The Institute of History and Philology (IHP) at Academia "
             "Sinica offers fellowships for doctoral candidates to write "
@@ -182,7 +182,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Taiwan"],
+        "focus_countries": ["TW"],
         "desc": (
             "The Taiwan International Graduate Program (TIGP) is "
             "Academia Sinica's English-medium PhD programme, jointly run "

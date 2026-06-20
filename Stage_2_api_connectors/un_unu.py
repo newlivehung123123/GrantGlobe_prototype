@@ -151,7 +151,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Japan"],
+        "focus_countries": ["JP"],
         "desc": (
             "The JSPS-UNU Postdoctoral Fellowship Programme is jointly "
             "organised by the United Nations University (acting as "

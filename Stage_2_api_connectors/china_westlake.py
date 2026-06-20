@@ -67,7 +67,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["China"],
+        "focus_countries": ["CN"],
         "desc": (
             "The Westlake Fellows Program is Westlake University's "
             "flagship recruitment programme for outstanding newly-minted "
@@ -115,7 +115,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["China"],
+        "focus_countries": ["CN"],
         "desc": (
             "Westlake University accepts international applicants "
             "holding a bachelor's degree directly into its PhD "

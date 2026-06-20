@@ -66,7 +66,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Hong Kong"],
+        "focus_countries": ["HK"],
         "desc": (
             "The Society of Fellows in the Humanities at the University "
             "of Hong Kong (HKU) invites applications from qualified "
@@ -114,7 +114,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Hong Kong"],
+        "focus_countries": ["HK"],
         "desc": (
             "The HKU Presidential PhD Scholar Programme (HKU-PS) offers "
             "the University of Hong Kong's most prestigious scholarship "

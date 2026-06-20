@@ -68,7 +68,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": ["Asia"],
-        "focus_countries": ["Japan"],
+        "focus_countries": ["JP"],
         "desc": (
             "The Sumitomo Foundation's Grant for Japan-Related Research "
             "Projects aims to enhance mutual understanding between Asian "
@@ -111,7 +111,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Japan"],
+        "focus_countries": ["JP"],
         "desc": (
             "The Sumitomo Foundation's Grant for Environmental Research "
             "Projects supports interdisciplinary research addressing "

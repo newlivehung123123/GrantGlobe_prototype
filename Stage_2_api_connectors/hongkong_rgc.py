@@ -72,9 +72,9 @@ SCHEMES: list[dict] = [
             "Science & Technology", "Research & Innovation",
             "Social Sciences", "Humanities",
         ],
-        "applicant_countries": ["Hong Kong"],
+        "applicant_countries": ["HK"],
         "focus_regions":       [],
-        "focus_countries":     ["Hong Kong"],
+        "focus_countries":     ["HK"],
         "desc": (
             "The General Research Fund (GRF) and Early Career Scheme (ECS) "
             "are run by Hong Kong's Research Grants Council (RGC), under "
@@ -119,7 +119,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions":       [],
-        "focus_countries":     ["Hong Kong"],
+        "focus_countries":     ["HK"],
         "desc": (
             "The Hong Kong PhD Fellowship Scheme (HKPFS), run by the "
             "Research Grants Council (RGC), is a prestigious, fully "
@@ -159,7 +159,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions":       [],
-        "focus_countries":     ["Hong Kong"],
+        "focus_countries":     ["HK"],
         "desc": (
             "The RGC Junior Research Fellow Scheme (JRFS, formerly known "
             "as the RGC Postdoctoral Fellowship Scheme, renamed effective "
@@ -202,9 +202,9 @@ SCHEMES: list[dict] = [
             "Science & Technology", "Research & Innovation",
             "Social Sciences", "Humanities",
         ],
-        "applicant_countries": ["Hong Kong"],
+        "applicant_countries": ["HK"],
         "focus_regions":       [],
-        "focus_countries":     ["Hong Kong"],
+        "focus_countries":     ["HK"],
         "desc": (
             "The RGC Collaborative Research Fund (CRF) supports "
             "multi-investigator, multi-disciplinary projects across "
@@ -246,9 +246,9 @@ SCHEMES: list[dict] = [
             "Science & Technology", "Research & Innovation",
             "Social Sciences", "Humanities", "Innovation Policy",
         ],
-        "applicant_countries": ["Hong Kong"],
+        "applicant_countries": ["HK"],
         "focus_regions":       [],
-        "focus_countries":     ["Hong Kong"],
+        "focus_countries":     ["HK"],
         "desc": (
             "The RGC Research Impact Fund (RIF) encourages Hong Kong "
             "academics to pursue impactful and translational research "
@@ -283,9 +283,9 @@ SCHEMES: list[dict] = [
         "amount_max": 1000000,
         "currency":   "HKD",
         "sectors": ["Humanities", "Social Sciences"],
-        "applicant_countries": ["Hong Kong"],
+        "applicant_countries": ["HK"],
         "focus_regions":       [],
-        "focus_countries":     ["Hong Kong"],
+        "focus_countries":     ["HK"],
         "desc": (
             "Introduced in 2012/13, the Humanities and Social Sciences "
             "Prestigious Fellowship Scheme (HSSPFS) grants extended "

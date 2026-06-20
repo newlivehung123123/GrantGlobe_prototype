@@ -78,7 +78,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Japan"],
+        "focus_countries": ["JP"],
         "desc": (
             "The RIKEN Special Postdoctoral Researchers (SPDR) Program "
             "invites outstanding scientists — Japanese and non-Japanese "
@@ -120,7 +120,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Japan"],
+        "focus_countries": ["JP"],
         "desc": (
             "An International Program Associate (IPA) is a non-Japanese "
             "doctoral candidate enrolled at a Japanese or overseas "
@@ -165,7 +165,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["Japan"],
+        "focus_countries": ["JP"],
         "desc": (
             "An International Program Associate (IPA) is a non-Japanese "
             "doctoral candidate enrolled at a Japanese or overseas "

@@ -74,7 +74,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["South Korea"],
+        "focus_countries": ["KR"],
         "desc": (
             "The IBS Young Scientist Fellowship (YSF) was launched in "
             "2016 to foster the next generation of basic science "
@@ -121,7 +121,7 @@ SCHEMES: list[dict] = [
         ],
         "applicant_countries": [],
         "focus_regions": [],
-        "focus_countries": ["South Korea"],
+        "focus_countries": ["KR"],
         "desc": (
             "The IBS Junior Chief Investigator (Junior CI) programme, "
             "launched in 2024, provides a position ensuring research "
