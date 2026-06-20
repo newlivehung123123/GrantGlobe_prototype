@@ -46,6 +46,14 @@ CONNECTORS = [
     ("Research Ireland",       CONNECTORS_DIR / "ireland_ri.py"),
     ("Spain AEI",              CONNECTORS_DIR / "spain_aei.py"),
     ("SNSF Switzerland",       CONNECTORS_DIR / "snsf_switzerland.py"),
+    ("MUR PRIN (Italy)",       CONNECTORS_DIR / "italy_mur_prin.py"),
+    ("Vetenskapsrådet (Sweden)", CONNECTORS_DIR / "sweden_vr.py"),
+    ("DFF (Denmark)",          CONNECTORS_DIR / "denmark_dff.py"),
+    ("FWF (Austria)",          CONNECTORS_DIR / "austria_fwf.py"),
+    ("Belgium Research Grants (FWO/FNRS)", CONNECTORS_DIR / "belgium_research_grants.py"),
+    ("FCT (Portugal)",         CONNECTORS_DIR / "portugal_fct.py"),
+    ("GAČR (Czech Republic)",  CONNECTORS_DIR / "czech_gacr.py"),
+    ("UEFISCDI (Romania)",     CONNECTORS_DIR / "romania_uefiscdi.py"),
     # ── North America ────────────────────────────────────────────────────────
     ("USDA NIFA",              CONNECTORS_DIR / "usda_nifa.py"),
     ("NSERC Canada",           CONNECTORS_DIR / "canada_nserc.py"),
@@ -89,6 +97,10 @@ CONNECTORS = [
     ("African Academy of Sciences (AAS)", CONNECTORS_DIR / "africa_aas.py"),
     ("NRF South Africa",       CONNECTORS_DIR / "southafrica_nrf.py"),
     ("AIMS",                   CONNECTORS_DIR / "africa_aims.py"),
+    # ── Middle East ──────────────────────────────────────────────────────────
+    ("TÜBİTAK (Turkey)",       CONNECTORS_DIR / "turkey_tubitak.py"),
+    ("UAE Research Grants",    CONNECTORS_DIR / "uae_research_grants.py"),
+    ("KAUST (Saudi Arabia)",   CONNECTORS_DIR / "saudi_kaust.py"),
     # ── Other ────────────────────────────────────────────────────────────────
     ("HHMI",                   CONNECTORS_DIR / "hhmi.py"),
     ("Gates Grand Challenges", CONNECTORS_DIR / "gates_grand_challenges.py"),
