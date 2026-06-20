@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import html
 import json
 import os
 import re
@@ -162,11 +163,11 @@ def _parse_detail(url: str, session: requests.Session) -> dict | None:
     title = ""
     tm = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.DOTALL | re.IGNORECASE)
     if tm:
-        title = _strip_tags(tm.group(1)).strip()
+        title = html.unescape(_strip_tags(tm.group(1)).strip())
     if not title:
         tm2 = re.search(r'<title>(.*?)</title>', html, re.DOTALL | re.IGNORECASE)
         if tm2:
-            title = _strip_tags(tm2.group(1)).split('|')[0].strip()
+            title = html.unescape(_strip_tags(tm2.group(1)).split('|')[0].strip())
     if not title or len(title) < 5:
         return None
 

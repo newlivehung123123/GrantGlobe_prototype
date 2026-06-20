@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import html
 import json
 import os
 import re
@@ -229,13 +230,13 @@ def _fetch_sbir_solicitations() -> list[dict]:
 
 def _map_solicitation(s: dict) -> dict | None:
     # Title — try multiple field names in order of likelihood
-    title = (
+    title = html.unescape((
         s.get("solicitation_title")
         or s.get("title")
         or s.get("name")
         or s.get("SolicitationTitle")
         or ""
-    ).strip()
+    ).strip())
     if not title:
         return None
 
@@ -286,7 +287,7 @@ def _map_solicitation(s: dict) -> dict | None:
         or s.get("deadline") or s.get("CloseDate")
     )
 
-    description = (
+    description = html.unescape(
         s.get("description") or s.get("synopsis") or s.get("abstract") or ""
     ).strip()
     if description:

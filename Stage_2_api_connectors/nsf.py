@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import html
 import json
 import os
 import re
@@ -172,7 +173,7 @@ def _map_solicitation(award: dict) -> dict | None:
     programs NSF is funding right now. The source_url points to the award
     detail page on research.gov.
     """
-    title = (award.get("title") or "").strip()
+    title = html.unescape((award.get("title") or "").strip())
     if not title:
         return None
 
@@ -207,7 +208,7 @@ def _map_solicitation(award: dict) -> dict | None:
     # Program name for richer description
     prog_name = (award.get("fundProgramName") or "").strip()
     awardee   = (award.get("awardeeName") or "").strip()
-    abstract  = (award.get("abstractText") or "").strip()
+    abstract  = html.unescape((award.get("abstractText") or "").strip())
     description = (
         f"[Active NSF Award — {prog_name}] Awardee: {awardee}. {abstract[:500]}"
         if abstract else

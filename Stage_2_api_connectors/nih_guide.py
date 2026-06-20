@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import html
 import json
 import os
 import re
@@ -187,7 +188,7 @@ def _map_opportunity(project: dict) -> dict | None:
       project_title, project_num, project_start_date, project_end_date,
       abstract_text, agency_code, total_cost, project_serial_num
     """
-    title    = (project.get("project_title") or "").strip()
+    title    = html.unescape((project.get("project_title") or "").strip())
     proj_num = (project.get("project_num") or "").strip()
     if not title or not proj_num:
         return None
@@ -218,7 +219,7 @@ def _map_opportunity(project: dict) -> dict | None:
     except (ValueError, TypeError):
         funding_max = None
 
-    abstract = (project.get("abstract_text") or "").strip()
+    abstract = html.unescape((project.get("abstract_text") or "").strip())
     description = abstract[:500] if abstract else None
 
     return {

@@ -26,6 +26,7 @@ import argparse
 import datetime
 import json
 import hashlib
+import html
 import os
 import sys
 import time
@@ -169,8 +170,8 @@ def _map_topic(topic: dict) -> dict:
     """Map one EU portal topic record to a GrantGlobe grant dict."""
     topic_id: str = (topic.get("identifier") or "").strip()
     call_id: str = (topic.get("callIdentifier") or "").strip()
-    title: str = (topic.get("title") or "").strip()
-    call_title: str = (topic.get("callTitle") or "").strip()
+    title: str = html.unescape((topic.get("title") or "").strip())
+    call_title: str = html.unescape((topic.get("callTitle") or "").strip())
 
     portal_url = PORTAL_BASE + topic_id.lower() if topic_id else None
 

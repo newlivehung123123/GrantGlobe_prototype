@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import html
 import json
 import os
 import sys
@@ -160,8 +161,8 @@ def _fetch_all_opportunities() -> list[dict]:
 def _map_opportunity(opp: dict) -> dict:
     """Map one grants.gov opportunity to a GrantGlobe grant dict."""
     opp_id = str(opp.get("id") or opp.get("oppNum") or "")
-    title = (opp.get("title") or "").strip()
-    agency = (opp.get("agencyName") or opp.get("agency") or "US Federal Government").strip()
+    title = html.unescape((opp.get("title") or "").strip())
+    agency = html.unescape((opp.get("agencyName") or opp.get("agency") or "US Federal Government").strip())
     status = (opp.get("oppStatus") or "").lower()
     category_code = (opp.get("fundingCategory") or "").upper()
 
@@ -193,6 +194,8 @@ def _map_opportunity(opp: dict) -> dict:
     thematic_sectors = CATEGORY_SECTOR_MAP.get(category_code, ["Research & Innovation"])
 
     description = opp.get("synopsis") or opp.get("description") or None
+    if description:
+        description = html.unescape(description)
 
     return {
         "grant_title":              title,

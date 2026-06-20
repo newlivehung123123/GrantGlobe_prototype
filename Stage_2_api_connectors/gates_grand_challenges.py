@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import html
 import json
 import os
 import re
@@ -202,10 +203,10 @@ def _parse_challenge(html: str, url: str, today: datetime.date) -> dict | None:
     # Prefer the full <h1> over truncated og:title
     h1_m = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.DOTALL | re.IGNORECASE)
     if h1_m:
-        title = _strip_tags(h1_m.group(0)).strip()
+        title = html.unescape(_strip_tags(h1_m.group(0)).strip())
     else:
         og_m = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', html)
-        title = og_m.group(1).strip() if og_m else ""
+        title = html.unescape(og_m.group(1).strip()) if og_m else ""
     if not title:
         return None
 
