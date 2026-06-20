@@ -154,18 +154,18 @@ def _get_detail_urls(session: requests.Session) -> list[str]:
 def _parse_detail(url: str, session: requests.Session) -> dict | None:
     """Fetch and parse a single NIFA NOFO detail page."""
     try:
-        html = _fetch(url, session)
+        page_html = _fetch(url, session)
     except Exception as e:
         print(f"  NIFA: fetch error {url}: {e}")
         return None
 
     # ── title ─────────────────────────────────────────────────────────────────
     title = ""
-    tm = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.DOTALL | re.IGNORECASE)
+    tm = re.search(r'<h1[^>]*>(.*?)</h1>', page_html, re.DOTALL | re.IGNORECASE)
     if tm:
         title = html.unescape(_strip_tags(tm.group(1)).strip())
     if not title:
-        tm2 = re.search(r'<title>(.*?)</title>', html, re.DOTALL | re.IGNORECASE)
+        tm2 = re.search(r'<title>(.*?)</title>', page_html, re.DOTALL | re.IGNORECASE)
         if tm2:
             title = html.unescape(_strip_tags(tm2.group(1)).split('|')[0].strip())
     if not title or len(title) < 5:
@@ -173,7 +173,7 @@ def _parse_detail(url: str, session: requests.Session) -> dict | None:
 
     # ── content area: everything after the closing </h1> ─────────────────────
     h1_end = tm.end() if tm else 0
-    after_h1 = html[h1_end:]
+    after_h1 = page_html[h1_end:]
 
     # ── description ───────────────────────────────────────────────────────────
     desc = ""
@@ -235,7 +235,7 @@ def _parse_detail(url: str, session: requests.Session) -> dict | None:
     fon = fon_m.group(1).strip() if fon_m else ""
 
     # Topics (from topic links in full HTML)
-    topics = re.findall(r'href="/topics/[^"]+">([^<]+)<', html)
+    topics = re.findall(r'href="/topics/[^"]+">([^<]+)<', page_html)
     topics = [t.strip() for t in topics if len(t.strip()) > 2]
 
     return {

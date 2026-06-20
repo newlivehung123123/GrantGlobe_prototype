@@ -192,20 +192,20 @@ def _parse_listing(html: str) -> list[str]:
 # Challenge detail page parser
 # ---------------------------------------------------------------------------
 
-def _parse_challenge(html: str, url: str, today: datetime.date) -> dict | None:
+def _parse_challenge(page_html: str, url: str, today: datetime.date) -> dict | None:
     """
     Parse a challenge detail page into a DB record dict.
     Returns None if the page has no parseable deadline or is already closed.
     """
-    text = _strip_tags(html)
+    text = _strip_tags(page_html)
 
     # ── Title ────────────────────────────────────────────────────────────────
     # Prefer the full <h1> over truncated og:title
-    h1_m = re.search(r'<h1[^>]*>(.*?)</h1>', html, re.DOTALL | re.IGNORECASE)
+    h1_m = re.search(r'<h1[^>]*>(.*?)</h1>', page_html, re.DOTALL | re.IGNORECASE)
     if h1_m:
         title = html.unescape(_strip_tags(h1_m.group(0)).strip())
     else:
-        og_m = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', html)
+        og_m = re.search(r'<meta\s+property="og:title"\s+content="([^"]+)"', page_html)
         title = html.unescape(og_m.group(1).strip()) if og_m else ""
     if not title:
         return None
@@ -233,7 +233,7 @@ def _parse_challenge(html: str, url: str, today: datetime.date) -> dict | None:
 
     # ── Description ──────────────────────────────────────────────────────────
     # Use meta description as base; supplement with body intro
-    meta_m = re.search(r'<meta\s+name="description"\s+content="([^"]+)"', html)
+    meta_m = re.search(r'<meta\s+name="description"\s+content="([^"]+)"', page_html)
     meta_desc = meta_m.group(1).strip() if meta_m else ""
 
     # Extract body intro: find text after the title and take the first paragraph
