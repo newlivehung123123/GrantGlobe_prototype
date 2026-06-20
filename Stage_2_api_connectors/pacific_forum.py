@@ -162,7 +162,7 @@ for _s in SCHEMES:
     _s.setdefault("amount_min", None)
     _s.setdefault("amount_max", None)
     _s.setdefault("sectors", ["Foreign Policy", "Security Studies"])
-    _s.setdefault("individual", ["Researcher", "Early-Career Professional"])
+    _s.setdefault("individual", ["Researcher", "Early Career Professional"])
     _s.setdefault("grant_types", ["Fellowship"])
     _s.setdefault("org_types", ORG_NONE)
     _s.setdefault("currency", "USD")
