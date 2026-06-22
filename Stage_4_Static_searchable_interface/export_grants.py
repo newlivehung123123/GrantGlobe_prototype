@@ -406,6 +406,16 @@ _VALIDATE_API_DOMAINS: frozenset[str] = frozenset(
     }
 )
 
+# Hosts that serve single-page apps / bot-challenge pages, where an HTTP request
+# returns 200 (or 403/202) regardless of whether the specific opportunity route
+# is valid — so a liveness fetch can neither confirm nor disprove the record.
+# Their internal IDs are validated at ingestion, so we skip the network probe
+# (the field-integrity validator still checks every one of their records).
+_LIVENESS_SKIP_HOSTS: tuple[str, ...] = (
+    "grants.gov", "nsf.gov", "research.gov", "nih.gov", "reporter.nih.gov",
+    "ec.europa.eu", "ukri.org",
+)
+
 _REQUEST_HEADERS: dict[str, str] = {
     "User-Agent": (
         "Mozilla/5.0 (compatible; GrantGlobe-Verifier/1.0; "
@@ -448,6 +458,22 @@ def _significant_title_words(title: str) -> list[str]:
     return [w for w in words if w not in _TITLE_STOPWORDS]
 
 
+def _url_is_dead(url: str, timeout: int = 10) -> bool:
+    """Return True only if a GET on *url* returns a DEFINITIVE 404/410. Any other
+    outcome — 200/3xx/403/5xx, timeout, connection error — returns False, so
+    uncertainty (e.g. bot-block 403, rate-limit, or transient errors) is never
+    treated as dead. We use GET (not HEAD): some servers mishandle HEAD or return
+    a transient 404 to it under load, which would produce false positives."""
+    try:
+        req = urllib.request.Request(url, headers=_REQUEST_HEADERS, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status in _DEAD_CODES
+    except urllib.error.HTTPError as exc:
+        return exc.code in _DEAD_CODES
+    except Exception:
+        return False
+
+
 def _verify_grant(grant: dict, timeout: int = 12) -> tuple[dict, bool, str]:
     """Fetch the grant URL and verify title + deadline against page content.
 
@@ -463,16 +489,30 @@ def _verify_grant(grant: dict, timeout: int = 12) -> tuple[dict, bool, str]:
     if not url:
         return grant, True, "no_url"
 
-    # API-sourced records are normally authoritative — their URLs come directly
-    # from the funder's own database/feed — so we skip content verification.
-    # EXCEPTION: connectors that construct the URL from a title-slug guess
-    # (_VALIDATE_API_DOMAINS) are verified like crawled records, since a guessed
-    # slug can 404 silently.
+    domain = _up(url).netloc.lower()
+    if domain.startswith("www."):
+        domain = domain[4:]
     grant_domain = grant.get("domain") or ""
-    if grant_domain.startswith("api_") and grant_domain not in _VALIDATE_API_DOMAINS:
-        return grant, True, "api_source_skip"
 
-    domain = _up(url).netloc.lower().lstrip("www.")
+    # API-sourced records have authoritative URLs (from the funder's own
+    # database/feed), so we do NOT content-verify them — their pages are often
+    # SPAs / bot-protected, and a title check would false-drop them. EXCEPTION:
+    # connectors that build the URL from a title-slug guess (_VALIDATE_API_DOMAINS)
+    # are content-verified like crawled records. Every OTHER api_ record still
+    # gets a liveness probe and is dropped ONLY on a definitive 404/410 — unless
+    # the host is a SPA/challenge site where HTTP liveness is meaningless.
+    if grant_domain.startswith("api_") and grant_domain not in _VALIDATE_API_DOMAINS:
+        if any(domain == h or domain.endswith("." + h) for h in _LIVENESS_SKIP_HOSTS):
+            return grant, True, "api_authoritative_skip"
+        # api_ URLs come from the funder's own feed (authoritative). A 404 here
+        # is AMBIGUOUS — many funder sites bot-block or rate-limit with transient
+        # 404/403 — so we never DROP an api_ record on liveness (that would remove
+        # valid opportunities). Instead we FLAG it for review in the report.
+        if _url_is_dead(url, timeout=min(timeout, 10)):
+            grant["_liveness_404"] = True
+            return grant, True, "api_liveness_404_flagged"
+        return grant, True, "api_liveness_ok"
+
     if any(domain.endswith(s) for s in _SKIP_VALIDATION_DOMAINS):
         return grant, True, "skip_domain"
 
@@ -676,6 +716,18 @@ def export(include_closed: bool, output_path: Path) -> tuple[int, str]:
     # ── URL validation — drop records with broken links ─────────────────
     print(f"  Validating URLs for {len(grants)} records…")
     grants = _filter_live_urls(grants)
+
+    # ── Field-integrity validation — every record, every field ──────────
+    # Checks title/funder/deadline/amount/link on ALL connectors, drops records
+    # with definitive errors, flags suspicious ones, and writes a per-connector
+    # quality report alongside grants.json for ongoing accuracy assurance.
+    import validation
+    grants, val_dropped, val_report = validation.validate(grants)
+    validation.print_summary(val_report)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    (output_path.parent / "validation_report.json").write_text(
+        json.dumps(val_report, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
 
     # ── Ranking (Layer 1) — replace the raw SQL ordering with a relevance/
     # quality/urgency score so the default feed leads with the best calls.
