@@ -2,10 +2,22 @@
 """
 NSF funding opportunities connector — Stage 2 API source.
 
-Fetches open NSF program solicitations and funding opportunities.
-No API key required.
+Fetches NSF's OPEN funding opportunities (program solicitations and
+announcements that are currently accepting proposals) from NSF's public RSS
+feeds. No API key required.
 
-NSF publishes active solicitations via a public search endpoint.
+    • Upcoming Due Dates       https://www.nsf.gov/rss/rss_www_funding_upcoming.xml
+    • Program Announcements    https://www.nsf.gov/rss/rss_www_funding_pgm_annc_inf.xml
+
+Both feeds list opportunities that are open for application, so records are
+ingested with current_status="Open". Each item links to a human-readable
+nsf.gov/funding/opportunities/ page. NSF does not publish a machine-readable
+feed of not-yet-open ("forthcoming") calls; those reach GrantGlobe via
+grants.gov (forecasted → Forthcoming) instead.
+
+History: this connector previously pulled the NSF *Awards* API, which returns
+grants already disbursed to named researchers — not open calls. Those records
+were reclassified Closed; this version replaces that source entirely.
 
 Usage (on the VPS):
     export $(grep DATABASE_URL /opt/grantglobe/Stage_3_LLM_extraction/.env | xargs)
@@ -22,7 +34,7 @@ import json
 import os
 import re
 import sys
-import time
+import xml.etree.ElementTree as ET
 
 import psycopg2
 import requests
@@ -31,29 +43,54 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-# NSF active funding opportunities search API
-NSF_SEARCH_URL = "https://www.nsf.gov/funding/pgm_list.jsp"
-NSF_API_URL = "https://www.nsf.gov/awardsearch/advancedSearchResult"
+NSF_FEEDS = [
+    "https://www.nsf.gov/rss/rss_www_funding_upcoming.xml",
+    "https://www.nsf.gov/rss/rss_www_funding_pgm_annc_inf.xml",
+]
 
-# NSF publishes a JSON feed of open program solicitations
-NSF_SOLICITATIONS_URL = (
-    "https://www.nsf.gov/pubs/chronological/solicit_chron_list.json"
-)
-NSF_PROGRAM_URL = "https://new.nsf.gov/funding/opportunities"
-NSF_DETAIL_BASE = "https://www.nsf.gov/pubs/"
-
-DIVISION_SECTOR_MAP: dict[str, list[str]] = {
-    "BIO": ["Agriculture & Food", "Climate & Environment"],
-    "CISE": ["Information & Communication Technologies"],
-    "EDU": ["Education & Training"],
-    "ENG": ["Science & Technology"],
-    "GEO": ["Climate & Environment"],
-    "MPS": ["Science & Technology"],
-    "SBE": ["Social Sciences & Humanities"],
-    "TIP": ["Technology & Innovation"],
-    "OD": ["Research & Innovation"],
-    "OISE": ["Research & Innovation"],
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/rss+xml, application/xml, text/xml",
 }
+
+# Deadline labels NSF uses in feed descriptions, in priority order (the main
+# full-proposal deadline wins over target dates and letters of intent).
+_DEADLINE_LABELS = [
+    "Full Proposal Deadline Date",
+    "Full Proposal Target Date",
+    "Proposal Deadline Date",
+    "Preliminary Proposal Deadline Date",
+    "Application Deadline Date",
+    "Letter of Intent Deadline Date",
+]
+
+# Keyword → thematic-sector inference (NSF feeds don't carry a directorate code).
+_SECTOR_KEYWORDS: list[tuple[re.Pattern, list[str]]] = [
+    (re.compile(r"\b(artificial intelligence|machine learning|\bAI\b)", re.I),
+        ["Information & Communication Technologies", "Science & Technology"]),
+    (re.compile(r"\b(cyber|comput|software|data science|quantum|algorithm)", re.I),
+        ["Information & Communication Technologies"]),
+    (re.compile(r"\b(climate|environment|ocean|arctic|geoscience|earth|sustainab|polar)", re.I),
+        ["Climate & Environment"]),
+    (re.compile(r"\b(bio|genom|ecolog|life science|organism|microb)", re.I),
+        ["Agriculture & Food", "Science & Technology"]),
+    (re.compile(r"\b(health|medical|biomed|disease|clinical|neuro)", re.I),
+        ["Health Sciences"]),
+    (re.compile(r"\b(education|STEM|undergraduate|graduate|teacher|learning|curricul)", re.I),
+        ["Education & Training"]),
+    (re.compile(r"\b(physics|chemistry|math|materials|astronom|nano)", re.I),
+        ["Science & Technology"]),
+    (re.compile(r"\b(social|economic|behavioral|psycholog|sociolog|human)", re.I),
+        ["Social Sciences & Humanities"]),
+    (re.compile(r"\b(small business|SBIR|STTR|innovation|technology transfer|entrepreneur|commerciali)", re.I),
+        ["Technology & Innovation"]),
+    (re.compile(r"\b(engineer)", re.I), ["Science & Technology"]),
+]
+
+_AI_PATTERN = re.compile(r"\b(artificial intelligence|machine learning|\bAI\b|deep learning)", re.I)
 
 
 # ---------------------------------------------------------------------------
@@ -96,147 +133,116 @@ def _parse_date(date_str: str | None) -> str | None:
     return None
 
 
-def _fetch_nsf_solicitations() -> list[dict]:
-    """
-    Fetch NSF active awards from the public NSF Awards API.
+def _clean(text: str | None) -> str:
+    """Strip HTML tags and unescape entities from a feed description."""
+    if not text:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
 
-    NSF's new funding opportunities site (new.nsf.gov) is a JS-rendered SPA
-    with no accessible JSON API. Open NSF solicitations are also indexed on
-    grants.gov (covered by the grants_gov connector). Here we use the NSF
-    Awards API to pull currently active awards — these represent programs NSF
-    is actively funding, giving users real grant titles and program areas to
-    search. We de-duplicate by directorate/division so we show programs, not
-    individual awards.
 
-    API docs: https://www.research.gov/common/webapi/awardapisearch-v1.htm
-    """
+def _extract_deadlines(desc: str) -> tuple[str | None, str | None, str | None]:
+    """Return (main_deadline_iso, main_deadline_raw, loi_deadline_iso) parsed
+    from a feed description, preferring the full-proposal deadline."""
+    date_re = r"([A-Z][a-z]+ \d{1,2},\s*\d{4})"
+    main_iso = main_raw = loi_iso = None
+    for label in _DEADLINE_LABELS:
+        m = re.search(re.escape(label) + r"\s*:?\s*" + date_re, desc)
+        if not m:
+            continue
+        iso = _parse_date(m.group(1))
+        if label == "Letter of Intent Deadline Date":
+            loi_iso = iso
+            if main_iso is None:          # only fall back to LOI if nothing better
+                main_iso, main_raw = iso, f"{label}: {m.group(1)}"
+        elif main_iso is None or label.startswith("Full Proposal Deadline"):
+            main_iso, main_raw = iso, f"{label}: {m.group(1)}"
+    return main_iso, main_raw, loi_iso
+
+
+def _infer_sectors(text: str) -> list[str]:
+    sectors: list[str] = []
+    for pat, secs in _SECTOR_KEYWORDS:
+        if pat.search(text):
+            for s in secs:
+                if s not in sectors:
+                    sectors.append(s)
+    return sectors or ["Research & Innovation", "Science & Technology"]
+
+
+# ---------------------------------------------------------------------------
+# Fetch + map
+# ---------------------------------------------------------------------------
+
+def _fetch_opportunities() -> list[dict]:
+    """Fetch and parse NSF open-opportunity items from the RSS feeds."""
     session = requests.Session()
-    session.headers.update({
-        "Accept": "application/json",
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/120.0.0.0 Safari/537.36"
-        ),
-    })
-
-    FIELDS = (
-        "id,title,agency,awardeeName,startDate,expDate,abstractText,"
-        "pdPIName,fundProgramName,dirAbbr,divAbbr,estimatedTotalAmt"
-    )
-
-    awards: list[dict] = []
-    offset = 1
-    rpp = 100
-    max_records = 500  # cap; NSF DB has ~10k recent awards
-
-    while offset <= max_records:
+    session.headers.update(_HEADERS)
+    items: list[dict] = []
+    for url in NSF_FEEDS:
         try:
-            resp = session.get(
-                "https://api.nsf.gov/services/v1/awards.json",
-                params={
-                    "dateStart": "01/01/2024",  # awards started since Jan 2024
-                    "printFields": FIELDS,
-                    "offset": offset,
-                    "rpp": rpp,
-                },
-                timeout=30,
-            )
+            resp = session.get(url, timeout=30)
             resp.raise_for_status()
-            data = resp.json()
-            batch = data.get("response", {}).get("award", [])
-            if not batch:
-                break
-            # Filter to currently active awards only (expDate in future)
-            today_str = datetime.date.today().strftime("%m/%d/%Y")
-            batch = [a for a in batch if a.get("activeAwd") == "true"]
-            awards.extend(batch)
-            total = int(data.get("response", {}).get("totalCount", 0) or 0)
-            print(f"  NSF Awards API: fetched {len(awards)}/{min(total, max_records) if total else '?'} active …")
-            if len(data.get("response", {}).get("award", [])) < rpp:
-                break
-            offset += rpp
-            time.sleep(0.3)
+            root = ET.fromstring(resp.content)
         except Exception as e:
-            print(f"  NSF Awards API failed at offset {offset}: {e}")
-            break
+            print(f"  WARNING: failed to fetch/parse {url}: {e}")
+            continue
+        channel = root.find("channel")
+        feed_items = channel.findall("item") if channel is not None else []
+        print(f"  {url.rsplit('/', 1)[-1]}: {len(feed_items)} item(s)")
+        for it in feed_items:
+            items.append({
+                "title": (it.findtext("title") or "").strip(),
+                "link": (it.findtext("link") or "").strip(),
+                "description": it.findtext("description") or "",
+            })
+    return items
 
-    print(f"  NSF: {len(awards)} active award records retrieved.")
-    return awards
 
-
-def _map_solicitation(award: dict) -> dict | None:
-    """
-    Map one NSF Awards API record to a GrantGlobe grant dict.
-
-    IMPORTANT: these are *awards already made* (activeAwardProject=true) — money
-    already disbursed to named researchers — NOT open funding calls anyone can
-    apply to. They are therefore mapped with current_status="Closed" so the
-    default export (which excludes Closed) keeps them off the live site. NSF's
-    open solicitations are largely cross-posted to grants.gov, which GrantGlobe
-    already ingests.
-    TODO: replace this Awards-API source with NSF's open-opportunities feed.
-    """
-    title = html.unescape((award.get("title") or "").strip())
-    if not title:
+def _map_item(item: dict) -> dict | None:
+    title = html.unescape(item["title"]).strip().rstrip(",").strip()
+    link = item["link"]
+    if not title or not link:
         return None
 
-    award_id = str(award.get("id") or "")
-    if not award_id:
-        return None
+    desc_clean = _clean(item["description"])
+    main_iso, main_raw, loi_iso = _extract_deadlines(desc_clean)
 
-    # Human-readable NSF award detail page. (The previous research.gov
-    # awardapi-service URL was a raw XML/JSON API endpoint, not a viewable page.)
-    portal_url = f"https://www.nsf.gov/awardsearch/showAward?AWD_ID={award_id}"
+    # Solicitation number (e.g. "NSF 26-508") for context in the description.
+    sol = re.search(r"NSF\s?\d{2}-\d{3}", desc_clean)
+    sol_no = sol.group(0) if sol else None
 
-    # NSF open solicitations search (generic link for context)
-    nsf_search = "https://new.nsf.gov/funding/opportunities"
+    haystack = f"{title} {desc_clean}"
+    sectors = _infer_sectors(haystack)
 
-    # Directorate → sector
-    dir_abbr = (award.get("dirAbbr") or "").upper()[:4].rstrip()
-    thematic_sectors = DIVISION_SECTOR_MAP.get(
-        dir_abbr, ["Research & Innovation", "Science & Technology"]
-    )
-
-    # Funding amount
-    amt_raw = award.get("estimatedTotalAmt")
-    try:
-        funding_max = float(amt_raw) if amt_raw else None
-    except (ValueError, TypeError):
-        funding_max = None
-
-    # Dates: startDate is when award was made, expDate is when award expires.
-    # We use expDate as the "deadline" (end of currently active award).
-    open_date = _parse_date(award.get("startDate"))
-    exp_date  = _parse_date(award.get("expDate"))
-
-    # Program name for richer description
-    prog_name = (award.get("fundProgramName") or "").strip()
-    awardee   = (award.get("awardeeName") or "").strip()
-    abstract  = html.unescape((award.get("abstractText") or "").strip())
-    description = (
-        f"[Active NSF Award — {prog_name}] Awardee: {awardee}. {abstract[:500]}"
-        if abstract else
-        f"Active NSF award in program: {prog_name}. Awardee: {awardee}."
-    )
+    # Build a concise description: trim the "Available Formats / HTML" prefix
+    # some announcement items carry, and the trailing feed boilerplate.
+    body = re.sub(r"^Available Formats:.*?(solicitation|/\d+)\s*", "", desc_clean, flags=re.I).strip()
+    body = re.sub(r"\s*More at https?://\S+.*$", "", body).strip()
+    body = re.sub(r"\s*This is an NSF .*?item\.?\s*$", "", body).strip()
+    body = body or desc_clean
+    description = (f"[{sol_no}] " if sol_no else "") + body
+    description = description[:1000] or None
 
     return {
         "grant_title":              title,
         "funder_name":              "National Science Foundation",
-        "source_url":               portal_url,
-        "application_portal_url":   None,   # portal_url is unique per award; NULL lets export uniqueness check use source_url
+        "source_url":               link,
+        "application_portal_url":   link,
         "description":              description,
-        "application_deadline":     exp_date,    # award expiry (active until then)
-        "application_deadline_raw": award.get("expDate"),
-        "grant_opening_date":       open_date,
-        # Already-disbursed award, not an open call — see docstring. Closed keeps
-        # it out of the default (Closed-excluding) export and off the live site.
-        "current_status":           "Closed",
+        "application_deadline":     main_iso,
+        "application_deadline_raw": main_raw,
+        "eoi_deadline":             loi_iso if loi_iso and loi_iso != main_iso else None,
+        "grant_opening_date":       None,
+        # Listed in NSF's open-opportunity feeds → currently accepting proposals.
+        "current_status":           "Open",
         "source_language":          "en",
         "funding_amount_min":       None,
-        "funding_amount_max":       funding_max,
-        "currency":                 "USD" if funding_max else None,
-        "thematic_sectors":         thematic_sectors,
+        "funding_amount_max":       None,
+        "currency":                 None,
+        "ai_focused":               bool(_AI_PATTERN.search(haystack)),
+        "thematic_sectors":         sectors,
         "grant_types":              ["Research Grant"],
         "applicant_base_regions":   ["North America"],
         "geographic_focus_regions": ["North America"],
@@ -249,7 +255,7 @@ def _map_solicitation(award: dict) -> dict | None:
         "requires_review":          False,
         "crawl_date":               datetime.date.today().isoformat(),
         "content_hash":             hashlib.sha256(
-            f"{award_id}|{title}|{exp_date}".encode()
+            f"{link}|{title}|{main_iso}".encode()
         ).hexdigest(),
     }
 
@@ -282,50 +288,40 @@ def _upsert_grant(cur, g: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="NSF → GrantGlobe ingestor")
+    parser = argparse.ArgumentParser(description="NSF open opportunities → GrantGlobe ingestor")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    print("Fetching NSF active awards …")
-    awards = _fetch_nsf_solicitations()
-    print(f"  {len(awards)} raw records retrieved.")
+    print("Fetching NSF open funding opportunities (RSS) …")
+    raw = _fetch_opportunities()
+    print(f"  {len(raw)} raw item(s) retrieved.")
 
-    today = datetime.date.today()
-    mapped = []
-    for a in awards:
-        g = _map_solicitation(a)
+    mapped: list[dict] = []
+    seen: set[str] = set()
+    for it in raw:
+        g = _map_item(it)
         if not g or not g.get("source_url") or not g.get("grant_title"):
             continue
-        # Keep awards that are currently active (expDate in the future, or no expDate)
-        if g["application_deadline"]:
-            try:
-                if datetime.date.fromisoformat(g["application_deadline"]) < today:
-                    continue
-            except ValueError:
-                pass
+        if g["source_url"] in seen:        # dedup by URL across the two feeds
+            continue
+        seen.add(g["source_url"])
         mapped.append(g)
-
-    seen: set[str] = set()
-    deduped = [g for g in mapped if not (g["source_url"] in seen or seen.add(g["source_url"]))]
-    print(f"  {len(deduped)} grants to upsert after filtering.")
+    print(f"  {len(mapped)} unique open opportunities to upsert.")
 
     if args.dry_run:
         print("\n[DRY RUN] First 3 records:")
-        for g in deduped[:3]:
+        for g in mapped[:3]:
             print(json.dumps(g, indent=2, default=str))
-        print(f"\n[DRY RUN] Would upsert {len(deduped)} records.")
+        print(f"\n[DRY RUN] Would upsert {len(mapped)} records.")
         return
 
     conn = _connect()
     try:
         counts = {"inserted": 0, "updated": 0, "skipped": 0}
-        for i in range(0, len(deduped), 200):
-            batch = deduped[i: i + 200]
-            with conn.cursor() as cur:
-                for g in batch:
-                    counts[_upsert_grant(cur, g)] += 1
-            conn.commit()
-            print(f"  Progress: {min(i+200, len(deduped))}/{len(deduped)}")
+        with conn.cursor() as cur:
+            for g in mapped:
+                counts[_upsert_grant(cur, g)] += 1
+        conn.commit()
     finally:
         conn.close()
 

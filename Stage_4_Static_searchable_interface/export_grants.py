@@ -393,6 +393,18 @@ _SKIP_VALIDATION_DOMAINS: frozenset[str] = frozenset(
     }
 )
 
+# api_* connectors that CONSTRUCT the opportunity URL from a title-derived slug
+# (rather than using an authoritative API/feed-provided link). A guessed slug
+# can 404 silently, so these are content-verified like crawled records instead
+# of being trusted. Add a domain here whenever a connector builds its URL from
+# the title rather than reading it from the source.
+_VALIDATE_API_DOMAINS: frozenset[str] = frozenset(
+    {
+        "api_nserc_canada",   # canada_nserc.py — falls back to _title_to_slug(title)
+        "api_ri",             # ireland_ri.py   — builds /funding/{slug}/ from the title
+    }
+)
+
 _REQUEST_HEADERS: dict[str, str] = {
     "User-Agent": (
         "Mozilla/5.0 (compatible; GrantGlobe-Verifier/1.0; "
@@ -450,9 +462,13 @@ def _verify_grant(grant: dict, timeout: int = 12) -> tuple[dict, bool, str]:
     if not url:
         return grant, True, "no_url"
 
-    # API-sourced records are authoritative — skip content verification entirely.
-    # Their URLs, titles, and deadlines come directly from the funder's own database.
-    if grant.get("domain") and grant["domain"].startswith("api_"):
+    # API-sourced records are normally authoritative — their URLs come directly
+    # from the funder's own database/feed — so we skip content verification.
+    # EXCEPTION: connectors that construct the URL from a title-slug guess
+    # (_VALIDATE_API_DOMAINS) are verified like crawled records, since a guessed
+    # slug can 404 silently.
+    grant_domain = grant.get("domain") or ""
+    if grant_domain.startswith("api_") and grant_domain not in _VALIDATE_API_DOMAINS:
         return grant, True, "api_source_skip"
 
     domain = _up(url).netloc.lower().lstrip("www.")
