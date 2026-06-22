@@ -279,7 +279,10 @@ def _map_opportunity(opp: dict) -> dict | None:
 
     opp_id       = opp.get("opp_id") or url
     deadline_iso = opp.get("deadline_iso")
-    funding_max  = opp.get("funding_max")
+    # GrantConnect lists the TOTAL value of the grant opportunity, not a
+    # per-applicant maximum, so we never report it as the award size — doing so
+    # massively overstates what one applicant can receive (e.g. a $600M scheme).
+    total_value  = opp.get("funding_max")
     description  = opp.get("description")
 
     # grants.gov.au link text is the grant reference code (e.g. "GO8474").
@@ -295,6 +298,11 @@ def _map_opportunity(opp: dict) -> dict | None:
     if not title:
         return None
 
+    if total_value:
+        note = (f"Total grant opportunity value: AUD {int(total_value):,} "
+                f"(total available across the programme, not a per-applicant maximum).")
+        description = f"{description} {note}".strip() if description else note
+
     funder = opp.get("agency") or "Australian Government"
 
     return {
@@ -309,8 +317,8 @@ def _map_opportunity(opp: dict) -> dict | None:
         "current_status":           "Open",
         "source_language":          "en",
         "funding_amount_min":       None,
-        "funding_amount_max":       funding_max,
-        "currency":                 "AUD" if funding_max else None,
+        "funding_amount_max":       None,   # GrantConnect gives total value, not per-applicant max
+        "currency":                 None,
         "thematic_sectors":         opp.get("thematic_sectors", ["Research & Innovation"]),
         "grant_types":              ["Research Grant"],
         "applicant_base_regions":   ["Asia-Pacific"],

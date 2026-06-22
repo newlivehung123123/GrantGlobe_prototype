@@ -227,17 +227,25 @@ def _extract_fields(url_raw: str, title_raw: str, block: str) -> dict | None:
     thematic_sectors = COUNCIL_SECTOR_MAP.get(council_key, ["Research & Innovation"])
 
     # ---- Funding amounts ----
-    funding_max = _parse_amount(
-        fields.get("total fund") or fields.get("maximum award")
-    )
+    # funding_amount_max MUST be the maximum award available to a SINGLE applicant,
+    # NOT "Total fund" — the whole programme budget shared across many awards.
+    # Reporting the total pool as the applyable amount is misleading (a user sees
+    # "£150,000,000" and thinks they can apply for it). So we use "Maximum award"
+    # / "Award range" only, and NEVER fall back to "Total fund". When no per-award
+    # figure is published we leave the amount blank and note the pool in the
+    # description instead.
     funding_min = None
+    funding_max = _parse_amount(fields.get("maximum award"))
     range_val = fields.get("award range", "")
     if range_val:
-        m_range = re.search(r'([\d,£]+)\s*[-–]\s*([\d,£]+)', range_val)
+        m_range = re.search(r'([\d,£.]+)\s*[-–]\s*([\d,£.]+)', range_val)
         if m_range:
             funding_min = _parse_amount(m_range.group(1))
-            if not funding_max:
+            if funding_max is None:
                 funding_max = _parse_amount(m_range.group(2))
+        elif funding_max is None:
+            funding_max = _parse_amount(range_val)
+    total_fund_raw = fields.get("total fund")
 
     # ---- Description: text in entry-content div ----
     m_desc = re.search(
@@ -245,6 +253,11 @@ def _extract_fields(url_raw: str, title_raw: str, block: str) -> dict | None:
         block, re.DOTALL | re.IGNORECASE,
     )
     description = _strip_tags(m_desc.group(1)).strip()[:500] if m_desc else None
+    # Preserve the total programme fund as context (clearly labelled), so the
+    # figure isn't lost but is never mistaken for the per-applicant maximum.
+    if total_fund_raw:
+        note = f"Total programme fund: {total_fund_raw} (shared across multiple awards)."
+        description = f"{description} {note}".strip() if description else note
 
     slug = re.search(r'/opportunity/([^/?#]+)/?', portal_url)
     opp_id = slug.group(1) if slug else portal_url

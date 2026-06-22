@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import decimal
+import html
 import json
 import os
 import sys
@@ -593,6 +594,13 @@ def _serialise_value(key: str, value) -> object:
 def _serialise_row(row: dict) -> dict:
     """Serialise a full database row dict to a JSON-safe dict."""
     result = {key: _serialise_value(key, val) for key, val in row.items()}
+    # Defensively decode any leftover HTML entities in free-text fields (some
+    # connectors stored raw '&amp;', '&ndash;', '&rsquo;', '&nbsp;' etc.). Applied
+    # to every record regardless of source so the public site never shows raw
+    # entity codes.
+    for _f in ("grant_title", "funder_name", "description"):
+        if isinstance(result.get(_f), str):
+            result[_f] = html.unescape(result[_f])
     # Restore incorrectly title-cased acronyms in free-text title fields.
     result["grant_title"]  = _fix_acronyms(result.get("grant_title"))
     result["funder_name"]  = _fix_acronyms(result.get("funder_name"))

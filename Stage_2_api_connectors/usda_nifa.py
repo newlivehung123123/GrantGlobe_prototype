@@ -216,19 +216,38 @@ def _parse_detail(url: str, session: requests.Session) -> dict | None:
     if pd_m:
         posted_raw = pd_m.group(1).strip()
 
-    # Estimated Total Program Funding
+    # Funding amounts. The per-applicant figures come from "Range of Awards"
+    # ($floor – $ceiling) or Award Floor/Ceiling — NOT "Estimated Total Program
+    # Funding", which is the whole programme pool shared across many awards.
+    # Using the pool as the award size massively overstates what one applicant
+    # can receive (e.g. a $121M pool vs a $30M per-award ceiling).
+    amount_min: int | None = None
     amount_max: int | None = None
     amount_raw = ""
-    etpf_m = re.search(r'Estimated Total Program Funding\s*\n\s*(\$[\d,]+(?:\s*\w+)?)', text)
-    if etpf_m:
-        amount_raw = etpf_m.group(1).strip()
-        amount_max = _parse_amount(amount_raw)
-
-    # Range of Awards — minimum end
-    amount_min: int | None = None
-    roa_m = re.search(r'Range of Awards\s*\n\s*(\$[\d,]+)', text)
+    roa_m = re.search(r'Range of Awards\s*\n\s*\$?([\d,]+)\s*(?:to|-|–|—)\s*\$?([\d,]+)', text)
     if roa_m:
         amount_min = _parse_amount(roa_m.group(1))
+        amount_max = _parse_amount(roa_m.group(2))
+        amount_raw = f"${roa_m.group(1)} - ${roa_m.group(2)}"
+    else:
+        ceil_m  = re.search(r'Award Ceiling\s*\n\s*(\$[\d,]+)', text)
+        floor_m = re.search(r'Award Floor\s*\n\s*(\$[\d,]+)', text)
+        if ceil_m:
+            amount_max = _parse_amount(ceil_m.group(1))
+            amount_raw = ceil_m.group(1).strip()
+        if floor_m:
+            amount_min = _parse_amount(floor_m.group(1))
+        if amount_max is None:  # single value in Range of Awards
+            roa1 = re.search(r'Range of Awards\s*\n\s*(\$[\d,]+)', text)
+            if roa1:
+                amount_max = _parse_amount(roa1.group(1))
+    # "Estimated Total Program Funding" is the programme pool — context only,
+    # never the per-award size.
+    etpf_m = re.search(r'Estimated Total Program Funding\s*\n\s*(\$[\d,]+(?:\s*\w+)?)', text)
+    total_program_raw = etpf_m.group(1).strip() if etpf_m else ""
+    if total_program_raw:
+        note = f"Total programme funding: {total_program_raw} (shared across multiple awards)."
+        desc = f"{desc} {note}".strip() if desc else note
 
     # Funding Opportunity Number
     fon_m = re.search(r'Funding Opportunity Number\s*\n\s*(\S+)', text)

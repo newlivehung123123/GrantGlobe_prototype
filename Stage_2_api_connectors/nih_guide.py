@@ -2,9 +2,14 @@
 """
 NIH connector — Stage 2 API source.
 
-Uses the NIH RePORTER API v2 (api.reporter.nih.gov) to fetch currently
-active NIH-funded projects. The NIH Guide RSS feeds block server IPs (403);
-RePORTER is the public alternative that works.
+Uses the NIH RePORTER API v2 (api.reporter.nih.gov). IMPORTANT: RePORTER
+returns ALREADY-FUNDED projects (awards made to named researchers), NOT open
+funding calls — you cannot apply to them. They are therefore ingested with
+current_status="Closed" so the default export keeps them off the live site.
+NIH's real open calls reach GrantGlobe via grants.gov (NIH Guide's own RSS
+feeds block server IPs with 403). This connector is retained only so the
+historical records stay refreshed and excluded; it does not add open
+opportunities. TODO: consider retiring it entirely.
 
 API docs: https://api.reporter.nih.gov/
 
@@ -231,7 +236,12 @@ def _map_opportunity(project: dict) -> dict | None:
         "application_deadline":     deadline_iso,
         "application_deadline_raw": project.get("project_end_date"),
         "grant_opening_date":       open_date,
-        "current_status":           "Open",
+        # NIH RePORTER returns ALREADY-FUNDED projects (awards made to named
+        # researchers), NOT open funding calls — see module docstring. They are
+        # not applyable, so they are marked Closed (excluded from the default
+        # export) rather than mislabelled as open opportunities. Real NIH/HHS
+        # open calls reach GrantGlobe via grants.gov.
+        "current_status":           "Closed",
         "source_language":          "en",
         "funding_amount_min":       None,
         "funding_amount_max":       funding_max,
