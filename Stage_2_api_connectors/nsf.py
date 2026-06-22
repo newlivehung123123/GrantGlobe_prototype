@@ -169,9 +169,13 @@ def _map_solicitation(award: dict) -> dict | None:
     """
     Map one NSF Awards API record to a GrantGlobe grant dict.
 
-    These are currently active awards (activeAwardProject=true), representing
-    programs NSF is funding right now. The source_url points to the award
-    detail page on research.gov.
+    IMPORTANT: these are *awards already made* (activeAwardProject=true) — money
+    already disbursed to named researchers — NOT open funding calls anyone can
+    apply to. They are therefore mapped with current_status="Closed" so the
+    default export (which excludes Closed) keeps them off the live site. NSF's
+    open solicitations are largely cross-posted to grants.gov, which GrantGlobe
+    already ingests.
+    TODO: replace this Awards-API source with NSF's open-opportunities feed.
     """
     title = html.unescape((award.get("title") or "").strip())
     if not title:
@@ -181,8 +185,9 @@ def _map_solicitation(award: dict) -> dict | None:
     if not award_id:
         return None
 
-    # Detail URL on research.gov
-    portal_url = f"https://www.research.gov/awardapi-service/v1/awards/{award_id}.html"
+    # Human-readable NSF award detail page. (The previous research.gov
+    # awardapi-service URL was a raw XML/JSON API endpoint, not a viewable page.)
+    portal_url = f"https://www.nsf.gov/awardsearch/showAward?AWD_ID={award_id}"
 
     # NSF open solicitations search (generic link for context)
     nsf_search = "https://new.nsf.gov/funding/opportunities"
@@ -224,7 +229,9 @@ def _map_solicitation(award: dict) -> dict | None:
         "application_deadline":     exp_date,    # award expiry (active until then)
         "application_deadline_raw": award.get("expDate"),
         "grant_opening_date":       open_date,
-        "current_status":           "Open",
+        # Already-disbursed award, not an open call — see docstring. Closed keeps
+        # it out of the default (Closed-excluding) export and off the live site.
+        "current_status":           "Closed",
         "source_language":          "en",
         "funding_amount_min":       None,
         "funding_amount_max":       funding_max,

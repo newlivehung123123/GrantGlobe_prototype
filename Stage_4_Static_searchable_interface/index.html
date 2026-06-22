@@ -80,6 +80,46 @@
       </div>
     </section>
 
+    <!-- ── Personalisation bar ───────────────────────────── -->
+    <section class="personalize">
+      <div class="personalize__inner">
+        <div class="personalize__row">
+          <button id="personalize-toggle" class="btn-personalize" aria-expanded="false" aria-controls="personalize-panel">
+            <span class="btn-personalize__icon" aria-hidden="true">✦</span>
+            <span id="personalize-label">Personalise my feed</span>
+          </button>
+          <div class="personalize__sort">
+            <label for="sort-mode" class="personalize__sort-label">Sort by</label>
+            <select id="sort-mode" class="filter-select" aria-label="Sort grants by">
+              <option value="recommended">Recommended for you</option>
+              <option value="toprated">Top rated</option>
+              <option value="deadline">Deadline (soonest)</option>
+              <option value="funding">Funding (largest)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="personalize-panel" class="personalize__panel hidden">
+          <div class="pz-group">
+            <p class="pz-group__label">I am a…</p>
+            <div id="pz-stage" class="pz-chips" role="group" aria-label="Career stage"></div>
+          </div>
+          <div class="pz-group">
+            <p class="pz-group__label">Fields I care about <span class="pz-group__hint">(pick any)</span></p>
+            <div id="pz-fields" class="pz-chips" role="group" aria-label="Fields of interest"></div>
+          </div>
+          <div class="pz-group">
+            <p class="pz-group__label">Where I'm based / applying from</p>
+            <div id="pz-region" class="pz-chips" role="group" aria-label="Region"></div>
+          </div>
+          <div class="pz-actions">
+            <button id="pz-save" class="btn-pz-save">Save &amp; personalise</button>
+            <button id="pz-clear" class="btn-pz-clear">Clear preferences</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ── Grant grid ──────────────────────────────────── -->
     <section class="grid-section">
       <div class="grid-section__inner">

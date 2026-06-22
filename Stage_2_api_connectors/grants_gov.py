@@ -200,9 +200,13 @@ def _map_opportunity(opp: dict) -> dict:
 
     open_date = _parse_date(opp.get("openDate") or opp.get("postDate"))
 
-    # URL: use the grants.gov detail page
-    opp_number = opp.get("number") or opp.get("oppNum") or opp_id
-    portal_url = f"{DETAIL_BASE}{opp_number}" if opp_number else None
+    # URL: grants.gov detail pages resolve ONLY by the numeric opportunityId
+    # (opp["id"]), NOT the human-readable opportunity number (opp["number"],
+    # e.g. "DHS-26-MT-143-00-01"). Building the URL from the number yields a
+    # non-resolving page — verified against the live grants.gov fetchOpportunity
+    # API, which returns the record for the numeric id and errors on the number.
+    numeric_id = str(opp.get("id") or "")
+    portal_url = f"{DETAIL_BASE}{numeric_id}" if numeric_id else None
 
     # Budget
     award_floor = opp.get("awardFloor")

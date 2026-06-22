@@ -653,6 +653,14 @@ def export(include_closed: bool, output_path: Path) -> tuple[int, str]:
     print(f"  Validating URLs for {len(grants)} records…")
     grants = _filter_live_urls(grants)
 
+    # ── Ranking (Layer 1) — replace the raw SQL ordering with a relevance/
+    # quality/urgency score so the default feed leads with the best calls.
+    # Annotates each grant with _rank_score (used as the frontend's global prior).
+    import ranking
+    grants = ranking.rank_grants(grants)
+    print(f"  Ranking: scored and ordered {len(grants)} records "
+          f"(top score {grants[0]['_rank_score'] if grants else 'n/a'})")
+
     payload: dict = {
         "metadata": {
             "exported_at": exported_at,

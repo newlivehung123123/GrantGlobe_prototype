@@ -61,13 +61,52 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('search-input').value = '';
     applySearchAndFilters();
   });
+
+  // ── Personalisation controls ─────────────────────────────────────────
+  document.getElementById('sort-mode').addEventListener('change', e => {
+    state.sortMode = e.target.value;
+    applySearchAndFilters();
+  });
+
+  document.getElementById('personalize-toggle').addEventListener('click', () => {
+    const panel  = document.getElementById('personalize-panel');
+    const toggle = document.getElementById('personalize-toggle');
+    const open   = panel.classList.toggle('hidden') === false;
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+
+  document.getElementById('pz-save').addEventListener('click', () => {
+    saveProfileFromPanel();
+    const panel = document.getElementById('personalize-panel');
+    panel.classList.add('hidden');
+    document.getElementById('personalize-toggle').setAttribute('aria-expanded', 'false');
+    // Saving implies the user wants their personalised feed.
+    state.sortMode = 'recommended';
+    document.getElementById('sort-mode').value = 'recommended';
+    applySearchAndFilters();
+  });
+
+  document.getElementById('pz-clear').addEventListener('click', () => {
+    state.profile = null;
+    try { localStorage.removeItem(LS_PROFILE); } catch (e) { /* ignore */ }
+    syncPanelToProfile();
+    updatePersonalizeLabel();
+    applySearchAndFilters();
+  });
 });
 
 // ── Module-level state ──────────────────────────────────────────────────────
 const state = {
-  allGrants: [],   // full dataset, set once in init()
-  filtered:  [],   // current filtered + searched subset
+  allGrants: [],          // full dataset, set once in init()
+  filtered:  [],          // current filtered + searched subset
+  sortMode:  'recommended', // recommended | toprated | deadline | funding
+  profile:   null,        // { stage, fields:[], region } from localStorage
+  affinity:  null,        // { sectors:{}, funders:{} } learned from clicks
 };
+
+// localStorage keys
+const LS_PROFILE  = 'gg_profile_v1';
+const LS_AFFINITY = 'gg_affinity_v1';
 
 // ── Error display ───────────────────────────────────────────────────────────
 function showError(err) {
@@ -86,10 +125,17 @@ function showError(err) {
 // ── init ────────────────────────────────────────────────────────────────────
 function init(grants, metadata) {
   state.allGrants = grants;
-  state.filtered  = grants;
+  state.profile   = loadProfile();
+  state.affinity  = loadAffinity();
   populateDynamicFilters(grants);
-  renderCards(grants);
-  updateResultCount(grants.length, grants.length);
+  buildPersonalizePanel(grants);
+  syncPanelToProfile();
+  updatePersonalizeLabel();
+  // Initial render uses the recommended ordering (global prior, personalised
+  // if a saved profile/affinity exists).
+  state.filtered = orderGrants(grants);
+  renderCards(state.filtered);
+  updateResultCount(state.filtered.length, grants.length);
   populateMetadata(metadata, grants.length);
 }
 
@@ -304,9 +350,13 @@ function renderCards(grants) {
     // Build card using a temporary container so we can extract the element.
     // We never assign directly to grid.innerHTML to preserve event delegation.
     const closedClass = grant.current_status === 'Closed' ? ' grant-card--closed' : '';
+    const forYouHtml = grant._forYou
+      ? `<span class="grant-card__foryou" aria-label="Recommended for you">✦ For you</span>`
+      : '';
     const tmp = document.createElement('div');
     tmp.innerHTML =
       `<div class="grant-card${closedClass}" tabindex="0" data-id="${esc(grant.id)}">` +
+        forYouHtml +
         `<div class="grant-card__header">` +
           `<span class="grant-card__title">${esc(grant.grant_title)}</span>` +
           `<span class="badge badge--${esc(cls)}">${esc(statusLabel)}</span>` +
@@ -337,6 +387,10 @@ function updateResultCount(shown, total) {
 
 // ── openModal ───────────────────────────────────────────────────────────────
 function openModal(grant) {
+  // Behavioural signal: opening a grant nudges future recommendations toward
+  // its sectors and funder (stored client-side, like a feed that learns).
+  recordAffinity(grant);
+
   const cls         = (grant.current_status || 'unknown').toLowerCase();
   const statusLabel = grant.current_status || 'Unknown';
 
@@ -514,13 +568,323 @@ function applySearchAndFilters() {
       ignoreLocation:   true,
       minMatchCharLength: 2,
     });
+    // A typed query means the user is looking for something specific, so
+    // text relevance leads. We keep Fuse's ordering rather than re-ranking.
     state.filtered = fuse.search(query).map(r => r.item);
+    clearForYou(state.filtered);
   } else {
-    // No query — preserve the original sort order from grants.json
-    state.filtered = hardFiltered;
+    // No query — order by the selected sort mode (recommended/personalised
+    // by default) instead of the raw grants.json order.
+    state.filtered = orderGrants(hardFiltered);
   }
 
   // Step 4 — render
   renderCards(state.filtered);
   updateResultCount(state.filtered.length, state.allGrants.length);
+}
+
+/* ============================================================
+   Personalisation & ranking (Layer 2 — client-side)
+   ------------------------------------------------------------
+   The build-time ranking (ranking.py) writes a global prior `_rank_score`
+   onto every grant. Here we re-rank that prior against a lightweight visitor
+   profile and their click history — entirely in the browser, no backend.
+   ============================================================ */
+
+// Career-stage → eligibility keyword hints (matched against grant fields).
+const STAGE_OPTIONS = [
+  { value: 'student',     label: 'Student / PhD' },
+  { value: 'early',       label: 'Postdoc / Early-career' },
+  { value: 'established', label: 'Established researcher' },
+  { value: 'nonprofit',   label: 'Non-profit / NGO' },
+  { value: 'industry',    label: 'Industry / Startup' },
+];
+
+const STAGE_KEYWORDS = {
+  student:     ['phd', 'doctoral', 'studentship', 'scholarship', 'student',
+                'master', 'graduate', 'fellowship', 'early career', 'early-career'],
+  early:       ['postdoc', 'post-doctoral', 'postdoctoral', 'early career',
+                'early-career', 'fellowship', 'junior', 'new investigator', 'first grant'],
+  established: ['research grant', 'project grant', 'programme grant', 'program grant',
+                'investigator', 'senior', 'consolidator', 'advanced grant', 'professor'],
+};
+
+// Rough FX→USD for the "Funding (largest)" sort (mirrors ranking.py).
+const FX_USD = {
+  USD: 1, EUR: 1.08, GBP: 1.27, CHF: 1.10, CAD: 0.73, AUD: 0.66, NZD: 0.61,
+  JPY: 0.0067, CNY: 0.14, HKD: 0.128, SGD: 0.74, KRW: 0.00073, INR: 0.012,
+  SEK: 0.095, NOK: 0.094, DKK: 0.145, PLN: 0.25, CZK: 0.043, ZAR: 0.054,
+  BRL: 0.18, MXN: 0.058, ILS: 0.27, AED: 0.27, SAR: 0.27, TWD: 0.031,
+};
+
+// ── localStorage persistence ──────────────────────────────────────────────
+function loadProfile() {
+  try { const raw = localStorage.getItem(LS_PROFILE); if (raw) return JSON.parse(raw); }
+  catch (e) { /* ignore */ }
+  return null;
+}
+function saveProfile(p) {
+  try { localStorage.setItem(LS_PROFILE, JSON.stringify(p)); } catch (e) { /* ignore */ }
+}
+function loadAffinity() {
+  try { const raw = localStorage.getItem(LS_AFFINITY); if (raw) return JSON.parse(raw); }
+  catch (e) { /* ignore */ }
+  return { sectors: {}, funders: {} };
+}
+function saveAffinity(a) {
+  try { localStorage.setItem(LS_AFFINITY, JSON.stringify(a)); } catch (e) { /* ignore */ }
+}
+
+function recordAffinity(grant) {
+  const a = state.affinity || { sectors: {}, funders: {} };
+  a.sectors = a.sectors || {};
+  a.funders = a.funders || {};
+  (grant.thematic_sectors || []).slice(0, 4).forEach(s => {
+    if (s) a.sectors[s] = (a.sectors[s] || 0) + 1;
+  });
+  if (grant.funder_name) a.funders[grant.funder_name] = (a.funders[grant.funder_name] || 0) + 1;
+  state.affinity = a;
+  saveAffinity(a);
+}
+
+// ── Profile helpers ─────────────────────────────────────────────────────────
+function hasAnyProfile(p) {
+  return !!(p && (p.stage || (p.fields && p.fields.length) ||
+                  (p.region && p.region !== 'any')));
+}
+function hasAffinity(a) {
+  return !!(a && a.sectors && Object.keys(a.sectors).length);
+}
+
+// ── Personalisation panel (chips built from the data) ───────────────────────
+function buildPersonalizePanel(grants) {
+  renderChips('pz-stage', STAGE_OPTIONS, 'single');
+
+  // Fields — the most common thematic sectors in the dataset (top 14).
+  const secCount = {};
+  grants.forEach(g => (g.thematic_sectors || []).forEach(s => {
+    if (s) secCount[s] = (secCount[s] || 0) + 1;
+  }));
+  const topSectors = Object.entries(secCount)
+    .sort((a, b) => b[1] - a[1]).slice(0, 14)
+    .map(([s]) => ({ value: s, label: s }));
+  renderChips('pz-fields', topSectors, 'multi');
+
+  // Region — distinct applicant/focus regions, with an "Anywhere" default.
+  const regSet = new Set();
+  grants.forEach(g => {
+    (g.applicant_base_regions || []).forEach(r => r && regSet.add(r));
+    (g.geographic_focus_regions || []).forEach(r => r && regSet.add(r));
+  });
+  const regions = [{ value: 'any', label: 'Anywhere' },
+    ...[...regSet].sort().map(r => ({ value: r, label: r }))];
+  renderChips('pz-region', regions, 'single');
+}
+
+function renderChips(containerId, options, mode) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '';
+  options.forEach(opt => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pz-chip';
+    b.dataset.value = opt.value;
+    b.textContent = opt.label;
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', () => {
+      if (mode === 'single') {
+        const wasSel = b.classList.contains('pz-chip--selected');
+        el.querySelectorAll('.pz-chip').forEach(c => {
+          c.classList.remove('pz-chip--selected');
+          c.setAttribute('aria-pressed', 'false');
+        });
+        if (!wasSel) { b.classList.add('pz-chip--selected'); b.setAttribute('aria-pressed', 'true'); }
+      } else {
+        const sel = b.classList.toggle('pz-chip--selected');
+        b.setAttribute('aria-pressed', String(sel));
+      }
+    });
+    el.appendChild(b);
+  });
+}
+
+function setChipSelection(containerId, values) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.querySelectorAll('.pz-chip').forEach(c => {
+    const on = values.includes(c.dataset.value);
+    c.classList.toggle('pz-chip--selected', on);
+    c.setAttribute('aria-pressed', String(on));
+  });
+}
+function selectedValues(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return [];
+  return [...el.querySelectorAll('.pz-chip--selected')].map(c => c.dataset.value);
+}
+
+function syncPanelToProfile() {
+  const p = state.profile;
+  setChipSelection('pz-stage',  p && p.stage ? [p.stage] : []);
+  setChipSelection('pz-fields', p && p.fields ? p.fields : []);
+  setChipSelection('pz-region', p && p.region ? [p.region] : []);
+}
+
+function saveProfileFromPanel() {
+  const profile = {
+    stage:  selectedValues('pz-stage')[0] || '',
+    fields: selectedValues('pz-fields'),
+    region: selectedValues('pz-region')[0] || '',
+  };
+  state.profile = profile;
+  saveProfile(profile);
+  updatePersonalizeLabel();
+}
+
+function updatePersonalizeLabel() {
+  const label = document.getElementById('personalize-label');
+  const btn   = document.getElementById('personalize-toggle');
+  const p = state.profile;
+  if (hasAnyProfile(p)) {
+    const bits = [];
+    const stageLabel = (STAGE_OPTIONS.find(o => o.value === p.stage) || {}).label;
+    if (stageLabel) bits.push(stageLabel);
+    if (p.fields && p.fields.length) {
+      bits.push(p.fields.slice(0, 2).join(', ') + (p.fields.length > 2 ? '…' : ''));
+    }
+    if (p.region && p.region !== 'any') bits.push(p.region);
+    label.textContent = bits.length ? 'Personalised · ' + bits.join(' · ') : 'Personalise my feed';
+    btn.classList.add('btn-personalize--active');
+  } else {
+    label.textContent = 'Personalise my feed';
+    btn.classList.remove('btn-personalize--active');
+  }
+}
+
+// ── Scoring ───────────────────────────────────────────────────────────────
+function globalPrior(g) {
+  return typeof g._rank_score === 'number' ? g._rank_score : 0.6;
+}
+
+function stageMatch(grant, stage) {
+  const orgTypes = (grant.organisation_types || []).join(' ').toLowerCase();
+  if (stage === 'nonprofit') {
+    return /non.?profit|ngo|charit|civil society|foundation|community/.test(orgTypes) ? 1.0 : 0.45;
+  }
+  if (stage === 'industry') {
+    const hay = orgTypes + ' ' + (grant.grant_types || []).join(' ').toLowerCase();
+    return /sme|business|compan|startup|start-up|industr|for.?profit|enterprise|innovation|commerc/.test(hay) ? 1.0 : 0.40;
+  }
+  const hay = [
+    ...(grant.grant_types || []),
+    ...(grant.individual_eligibility || []),
+    ...(grant.organisation_types || []),
+    grant.grant_title || '',
+  ].join(' ').toLowerCase();
+  const kws = STAGE_KEYWORDS[stage] || [];
+  const hits = kws.filter(k => hay.includes(k)).length;
+  if (hits >= 2) return 1.0;
+  if (hits === 1) return 0.75;
+  return 0.45;
+}
+
+function affinityBoost(grant, affinity) {
+  if (!hasAffinity(affinity)) return 0.4;
+  const secW = affinity.sectors || {};
+  const funW = affinity.funders || {};
+  const sumSec = Object.values(secW).reduce((a, b) => a + b, 0) || 1;
+  let s = 0;
+  (grant.thematic_sectors || []).forEach(sec => { if (secW[sec]) s += secW[sec] / sumSec; });
+  s = Math.min(1, s);
+  const sumFun = Object.values(funW).reduce((a, b) => a + b, 0) || 1;
+  const f = grant.funder_name && funW[grant.funder_name]
+    ? Math.min(1, funW[grant.funder_name] / sumFun) : 0;
+  return Math.max(0.3, 0.7 * s + 0.3 * f);
+}
+
+// Returns 0..1 personal match, or null when there's nothing to personalise on.
+function personalMatch(grant, profile, affinity) {
+  const profilePresent  = hasAnyProfile(profile);
+  const affinityPresent = hasAffinity(affinity);
+  if (!profilePresent && !affinityPresent) return null;
+
+  let pm = null;
+  if (profilePresent) {
+    // Field overlap
+    let fieldScore = 0.5;
+    if (profile.fields && profile.fields.length) {
+      const sectors = grant.thematic_sectors || [];
+      const hit = sectors.filter(s => profile.fields.includes(s)).length;
+      fieldScore = hit > 0 ? Math.min(1, 0.65 + 0.18 * hit) : 0.20;
+    }
+    // Region
+    let regionScore = 0.5;
+    if (profile.region && profile.region !== 'any') {
+      const regions = [...(grant.applicant_base_regions || []),
+                       ...(grant.geographic_focus_regions || [])];
+      if (regions.includes(profile.region)) regionScore = 1.0;
+      else if (!regions.length || regions.includes('Global')) regionScore = 0.6;
+      else regionScore = 0.25;
+    }
+    // Career stage / eligibility
+    const stageScore = profile.stage ? stageMatch(grant, profile.stage) : 0.5;
+    pm = 0.42 * fieldScore + 0.30 * stageScore + 0.28 * regionScore;
+  }
+
+  const ab = affinityBoost(grant, affinity);
+  if (profilePresent && affinityPresent) return 0.8 * pm + 0.2 * ab;
+  if (profilePresent) return pm;
+  return ab; // affinity only
+}
+
+// ── Ordering ────────────────────────────────────────────────────────────────
+function deadlineKey(g) {
+  if (!g.application_deadline) return Number.MAX_SAFE_INTEGER;
+  const t = Date.parse(g.application_deadline + 'T00:00:00');
+  return isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+}
+function fundingUsd(g) {
+  const amt = g.funding_amount_max || g.funding_amount_min;
+  if (!amt) return -1;
+  return Number(amt) * (FX_USD[(g.currency || 'USD').toUpperCase()] || 1);
+}
+function idHash(g) {
+  const s = String(g.id || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+function clearForYou(arr) { arr.forEach(g => { g._forYou = false; }); }
+
+function orderGrants(list) {
+  const arr = list.slice();
+
+  if (state.sortMode === 'deadline') {
+    clearForYou(arr);
+    return arr.sort((a, b) => deadlineKey(a) - deadlineKey(b));
+  }
+  if (state.sortMode === 'funding') {
+    clearForYou(arr);
+    return arr.sort((a, b) => fundingUsd(b) - fundingUsd(a));
+  }
+  if (state.sortMode === 'toprated') {
+    clearForYou(arr);
+    return arr.sort((a, b) => globalPrior(b) - globalPrior(a) || idHash(a) - idHash(b));
+  }
+
+  // 'recommended' — blend the global prior with the personal match.
+  const personalised = hasAnyProfile(state.profile) || hasAffinity(state.affinity);
+  arr.forEach(g => {
+    const pm = personalMatch(g, state.profile, state.affinity);
+    if (pm == null) {
+      g._score  = globalPrior(g);
+      g._forYou = false;
+    } else {
+      g._score  = 0.45 * globalPrior(g) + 0.55 * pm;
+      g._forYou = personalised && pm >= 0.78;
+    }
+  });
+  arr.sort((a, b) => b._score - a._score || idHash(a) - idHash(b));
+  return arr;
 }

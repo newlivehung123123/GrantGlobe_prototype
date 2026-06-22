@@ -236,6 +236,183 @@ input {
   outline-offset: 2px;
 }
 
+/* ── Personalisation bar ────────────────────────────────────── */
+.personalize {
+  background: var(--clr-surface);
+  border-bottom: 1px solid var(--clr-border);
+}
+
+.personalize__inner {
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 12px 24px;
+}
+
+.personalize__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-personalize {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--clr-primary);
+  border-radius: var(--radius);
+  background: rgba(37, 99, 235, 0.06);
+  color: var(--clr-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.btn-personalize:hover {
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.btn-personalize__icon {
+  font-size: 14px;
+}
+
+.btn-personalize--active,
+.btn-personalize--active:hover {
+  background: var(--clr-primary);
+  color: #fff;
+}
+
+.personalize__sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.personalize__sort-label {
+  font-size: 13px;
+  color: var(--clr-text-muted);
+  font-weight: 500;
+}
+
+.personalize__panel {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  background: var(--clr-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pz-group__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--clr-text-muted);
+  margin-bottom: 8px;
+}
+
+.pz-group__hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.pz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pz-chip {
+  padding: 6px 14px;
+  border: 1px solid var(--clr-border);
+  border-radius: 999px;
+  background: var(--clr-surface);
+  color: var(--clr-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.pz-chip:hover {
+  border-color: var(--clr-primary);
+}
+
+.pz-chip--selected {
+  background: var(--clr-primary);
+  border-color: var(--clr-primary);
+  color: #fff;
+}
+
+.pz-chip:focus-visible {
+  outline: 2px solid var(--clr-primary);
+  outline-offset: 2px;
+}
+
+.pz-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.btn-pz-save {
+  height: 38px;
+  padding: 0 20px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--clr-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.btn-pz-save:hover {
+  background: var(--clr-primary-dark);
+}
+
+.btn-pz-clear {
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius);
+  background: var(--clr-surface);
+  color: var(--clr-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-pz-clear:hover {
+  color: var(--clr-text);
+  border-color: var(--clr-text-muted);
+}
+
+/* "For you" recommendation ribbon on strongly-matched cards */
+.grant-card__foryou {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.10);
+  color: var(--clr-primary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 /* ── Grant grid ─────────────────────────────────────────────── */
 .grid-section {
   padding: 28px 0 48px;
