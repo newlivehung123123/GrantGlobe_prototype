@@ -227,6 +227,7 @@ def close_stale_records() -> None:
     try:
         conn = psycopg2.connect(db_url)
         cur = conn.cursor()
+        # (a) Past-deadline close.
         cur.execute("""
             UPDATE grants
             SET current_status = 'Closed'
@@ -235,7 +236,25 @@ def close_stale_records() -> None:
               AND application_deadline IS NOT NULL
               AND application_deadline < CURRENT_DATE
         """)
-        print(f"  Closed {cur.rowcount} stale record(s).")
+        print(f"  Closed {cur.rowcount} past-deadline record(s).")
+
+        # (b) Crawl-staleness close (generic, source-agnostic reconciliation):
+        # a record whose connector has re-run notably more recently than this
+        # record was last re-seen has dropped off the source listing — close it,
+        # even if its deadline is still future or absent. The 7-day margin (vs.
+        # the connector's OWN latest crawl) tolerates partial/occasional runs and
+        # never fires for one-time connectors (all their rows share a crawl_date).
+        cur.execute("""
+            UPDATE grants g
+            SET current_status = 'Closed'
+            WHERE g.review_status = 'approved'
+              AND g.current_status != 'Closed'
+              AND g.crawl_date IS NOT NULL
+              AND g.crawl_date < (
+                    SELECT MAX(g2.crawl_date) FROM grants g2 WHERE g2.domain = g.domain
+                  ) - INTERVAL '7 days'
+        """)
+        print(f"  Closed {cur.rowcount} source-vanished (stale-crawl) record(s).")
         conn.commit()
         conn.close()
     except Exception as e:

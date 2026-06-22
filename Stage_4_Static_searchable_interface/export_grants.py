@@ -89,7 +89,11 @@ _EXPORT_COLUMNS = """
     grant_types,
     domain,
     crawl_date,
-    last_verified
+    -- Provenance shown to users: the freshest of (API-verified date, last date
+    -- the source connector re-saw this record). Gives EVERY record a
+    -- "last verified" signal, not just the API-enriched ones. GREATEST ignores
+    -- NULLs, so records never verified via API fall back to crawl_date.
+    GREATEST(last_verified, crawl_date) AS last_verified
 """
 
 # Columns whose DB value may be NULL but must serialise as [] in JSON
