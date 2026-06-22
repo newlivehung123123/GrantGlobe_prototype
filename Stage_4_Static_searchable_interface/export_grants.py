@@ -88,7 +88,8 @@ _EXPORT_COLUMNS = """
     thematic_sectors,
     grant_types,
     domain,
-    crawl_date
+    crawl_date,
+    last_verified
 """
 
 # Columns whose DB value may be NULL but must serialise as [] in JSON
