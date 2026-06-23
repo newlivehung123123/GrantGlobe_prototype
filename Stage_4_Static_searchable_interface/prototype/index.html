@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GrantGlobe — concept</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --w1:rgba(255,255,255,.92); --w2:rgba(255,255,255,.55); --w3:rgba(255,255,255,.34);
+    --glass:rgba(255,255,255,.045); --glass-hi:rgba(255,255,255,.14); --hair:rgba(255,255,255,.09);
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  html,body{height:100%}
+  body{
+    background:#000; color:var(--w1); overflow-x:hidden;
+    font-family:'Space Grotesk',system-ui,sans-serif; font-weight:300;
+    -webkit-font-smoothing:antialiased;
+  }
+  #space{position:fixed;inset:0;z-index:0;display:block}
+  .vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
+    background:radial-gradient(120% 90% at 50% 30%,transparent 40%,rgba(0,0,0,.55) 100%)}
+  .ui{position:relative;z-index:2}
+
+  header{display:flex;align-items:center;justify-content:space-between;
+    padding:26px 40px;}
+  .brand{font-size:18px;font-weight:500;letter-spacing:.34em;text-transform:uppercase}
+  .nav{display:flex;gap:30px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--w2)}
+  .nav span{cursor:pointer;transition:color .3s var(--ease)} .nav span:hover{color:var(--w1)}
+
+  .hero{text-align:center;padding:11vh 24px 7vh;}
+  .eyebrow{font-size:12px;letter-spacing:.5em;text-transform:uppercase;color:var(--w3);margin-bottom:26px}
+  .hero h1{font-size:clamp(34px,6vw,76px);font-weight:300;line-height:1.05;letter-spacing:-.02em;}
+  .hero h1 em{font-style:normal;font-weight:500}
+  .hero p{margin:26px auto 0;max-width:520px;font-size:16px;line-height:1.7;color:var(--w2)}
+
+  .search{margin:46px auto 0;max-width:560px;display:flex;align-items:center;gap:14px;
+    padding:16px 22px;border-radius:100px;
+    background:var(--glass);backdrop-filter:blur(26px) saturate(1.3);-webkit-backdrop-filter:blur(26px) saturate(1.3);
+    border:1px solid var(--hair);box-shadow:inset 0 1px 0 var(--glass-hi),0 24px 70px rgba(0,0,0,.5);}
+  .search svg{width:18px;height:18px;stroke:var(--w2);flex:none}
+  .search span{color:var(--w3);font-size:15px;letter-spacing:.01em}
+
+  .grid{max-width:1080px;margin:7vh auto 9vh;padding:0 28px;
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px}
+  .card{position:relative;padding:26px 26px 24px;border-radius:26px;cursor:pointer;
+    background:var(--glass);backdrop-filter:blur(30px) saturate(1.25);-webkit-backdrop-filter:blur(30px) saturate(1.25);
+    border:1px solid var(--hair);
+    box-shadow:inset 0 1px 0 var(--glass-hi),0 30px 80px rgba(0,0,0,.55);
+    transition:transform .6s var(--ease),background .6s var(--ease),box-shadow .6s var(--ease);}
+  .card:hover{transform:translateY(-7px);background:rgba(255,255,255,.075);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 44px 110px rgba(0,0,0,.7)}
+  .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    padding:6px 13px;border-radius:100px;background:rgba(255,255,255,.07);border:1px solid var(--hair);color:var(--w2)}
+  .status{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--w1)}
+  .card h3{font-size:20px;font-weight:400;line-height:1.25;letter-spacing:-.01em;margin-bottom:10px}
+  .funder{font-size:13px;color:var(--w2);letter-spacing:.02em;margin-bottom:22px}
+  .meta{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--w2);
+    padding-top:18px;border-top:1px solid var(--hair)}
+  .amount{font-weight:500;color:var(--w1);letter-spacing:.01em}
+
+  .overlay{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:30px;
+    background:rgba(0,0,0,.38);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);opacity:0;transition:opacity .5s var(--ease)}
+  .overlay.show{display:flex;opacity:1}
+  .sheet{width:100%;max-width:520px;padding:38px;border-radius:34px;transform:scale(.94) translateY(14px);opacity:0;
+    background:rgba(255,255,255,.06);backdrop-filter:blur(40px) saturate(1.4);-webkit-backdrop-filter:blur(40px) saturate(1.4);
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 50px 130px rgba(0,0,0,.75);
+    transition:transform .6s var(--ease),opacity .6s var(--ease)}
+  .overlay.show .sheet{transform:scale(1) translateY(0);opacity:1}
+  .sheet .top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+  .sheet h2{font-size:27px;font-weight:300;line-height:1.18;letter-spacing:-.015em}
+  .sheet .funder{font-size:14px;margin:8px 0 0}
+  .close{flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--hair);background:rgba(255,255,255,.06);
+    color:var(--w1);cursor:pointer;font-size:17px;font-weight:300;transition:background .3s var(--ease)}
+  .close:hover{background:rgba(255,255,255,.14)}
+  .tags{display:flex;flex-wrap:wrap;gap:9px;margin:26px 0}
+  .sheet .desc{font-size:15px;line-height:1.75;color:var(--w2)}
+  .verified{display:flex;align-items:center;gap:8px;margin-top:24px;font-size:12px;letter-spacing:.04em;color:var(--w3)}
+  .apply{display:inline-flex;align-items:center;gap:10px;margin-top:26px;padding:15px 30px;border-radius:100px;border:none;cursor:pointer;
+    font-family:inherit;font-size:14px;font-weight:500;letter-spacing:.04em;color:#000;background:#fff;
+    transition:transform .4s var(--ease),box-shadow .4s var(--ease)}
+  .apply:hover{transform:translateY(-2px);box-shadow:0 16px 50px rgba(255,255,255,.18)}
+  .hint{position:fixed;bottom:22px;left:0;right:0;z-index:2;text-align:center;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--w3)}
+</style>
+</head>
+<body>
+<canvas id="space"></canvas>
+<div class="vignette"></div>
+
+<div class="ui">
+  <header>
+    <div class="brand">GrantGlobe</div>
+    <nav class="nav"><span>Discover</span><span>For&nbsp;you</span><span>Funders</span><span>About</span></nav>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">Open funding intelligence · worldwide</div>
+    <h1>Funding from <em>every</em><br>corner of the world.</h1>
+    <p>One borderless index of live research and innovation funding — verified against the source, ranked for you.</p>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <span>Search grants by keyword, funder, or topic…</span>
+    </div>
+  </section>
+
+  <section class="grid" id="grid"></section>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <div class="top">
+      <div><h2 id="mTitle"></h2><p class="funder" id="mFunder"></p></div>
+      <button class="close" id="mClose" aria-label="Close">✕</button>
+    </div>
+    <div class="tags" id="mTags"></div>
+    <p class="desc" id="mDesc"></p>
+    <div class="verified"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12l4 4L19 6"/></svg><span id="mVerified"></span></div>
+    <button class="apply">Apply / view grant
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 17 17 7M9 7h8v8"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="hint">drag to look around · click any grant</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const GRANTS=[
+ {t:"Future data services sandpit",f:"Economic and Social Research Council",fy:true,dl:"16 Jul 2026",a:"Up to £1.5M",
+  d:"A sandpit to transform discovery of, and access to, the UK's longitudinal data services — convening researchers, data scientists and infrastructure leads to prototype the next generation of data access.",v:"Verified against funder · 23 Jun 2026"},
+ {t:"Hybrid algorithms for quantum advantage",f:"Engineering and Physical Sciences Research Council",fy:false,dl:"30 Sep 2026",a:"Up to £2.28M",
+  d:"Support for teams developing hybrid classical–quantum algorithms that demonstrate practical quantum advantage on near-term hardware.",v:"Verified against funder · 23 Jun 2026"},
+ {t:"Grand Challenges Africa",f:"African Academy of Sciences",fy:true,dl:"12 Aug 2026",a:"Up to $100K",
+  d:"Seed and scaling awards for African-led research tackling health, climate and development challenges across the continent.",v:"Verified against funder · 23 Jun 2026"},
+ {t:"Early independence: clinician scientist fellowship",f:"Medical Research Council",fy:true,dl:"2 Sep 2026",a:"Up to £1.2M",
+  d:"A flagship fellowship enabling early-career clinicians to establish an independent research programme bridging laboratory and clinic.",v:"Verified against funder · 23 Jun 2026"},
+ {t:"Open competition — emerging fields and groups",f:"Dutch Research Council (NWO)",fy:false,dl:"Rolling",a:"Not specified by funder",
+  d:"Curiosity-driven funding for interdisciplinary teams pursuing emerging research directions, with no thematic constraints.",v:"Verified against funder · 23 Jun 2026"},
+ {t:"Marsden Fund standard grant",f:"Royal Society Te Apārangi",fy:false,dl:"4 Nov 2026",a:"Up to NZ$960K",
+  d:"New Zealand's premier fund for investigator-led research excellence across all disciplines, from the sciences to the humanities.",v:"Verified against funder · 23 Jun 2026"}
+];
+const grid=document.getElementById('grid');
+GRANTS.forEach((g,i)=>{
+  const el=document.createElement('div');el.className='card';el.dataset.i=i;
+  el.innerHTML=`<div class="row">
+      <span class="pill">${g.fy?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg> For you':'&nbsp;Open call&nbsp;'}</span>
+      <span class="status">${g.dl==='Rolling'?'Rolling':'Open'}</span>
+    </div>
+    <h3>${g.t}</h3><div class="funder">${g.f}</div>
+    <div class="meta"><span>${g.dl==='Rolling'?'Rolling deadline':'Closes '+g.dl}</span><span class="amount">${g.a.replace('Up to ','').replace('Not specified by funder','—')}</span></div>`;
+  el.addEventListener('click',()=>open(i));grid.appendChild(el);
+});
+const ov=document.getElementById('overlay');
+function open(i){const g=GRANTS[i];
+  mTitle.textContent=g.t;mFunder.textContent=g.f;mDesc.textContent=g.d;mVerified.textContent=g.v;
+  mTags.innerHTML=`<span class="pill">${g.dl==='Rolling'?'Rolling':'Closes '+g.dl}</span><span class="pill">${g.a}</span>`;
+  ov.classList.add('show');}
+function close(){ov.classList.remove('show');}
+mClose.onclick=close;ov.addEventListener('click',e=>{if(e.target===ov)close()});
+addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+
+const cv=document.getElementById('space');
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x000000,0.00085);
+const cam=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,1,3000);cam.position.z=620;
+function field(n,size,op,rmin,rmax){
+  const geo=new THREE.BufferGeometry(),p=new Float32Array(n*3);
+  for(let i=0;i<n;i++){const r=rmin+Math.random()*(rmax-rmin),th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+    p[i*3]=r*Math.sin(ph)*Math.cos(th);p[i*3+1]=r*Math.sin(ph)*Math.sin(th);p[i*3+2]=r*Math.cos(ph);}
+  geo.setAttribute('position',new THREE.BufferAttribute(p,3));
+  return new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size,sizeAttenuation:true,transparent:true,opacity:op,depthWrite:false}));
+}
+const near=field(2600,2.0,0.9,120,760),far=field(2200,1.1,0.42,500,1300);
+scene.add(near);scene.add(far);
+let mx=0,my=0,tx=0,ty=0;
+addEventListener('pointermove',e=>{tx=(e.clientX/innerWidth-.5);ty=(e.clientY/innerHeight-.5)});
+function resize(){renderer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',resize);resize();
+(function loop(){requestAnimationFrame(loop);
+  near.rotation.y+=0.00045;near.rotation.x+=0.00012;far.rotation.y+=0.00026;
+  mx+=(tx-mx)*0.03;my+=(ty-my)*0.03;
+  cam.position.x=mx*150;cam.position.y=-my*150;cam.lookAt(scene.position);
+  renderer.render(scene,cam);
+})();
+</script>
+</body>
+</html>
