@@ -3,106 +3,134 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>GrantGlobe — concept</title>
+<title>GrantGlobe</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Michroma&family=Sora:wght@300;400;600&family=Chakra+Petch:wght@300;400;600&family=Rajdhani:wght@300;400;500;600;700&family=Exo+2:wght@300;400;500&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7/dist/fuse.umd.min.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   :root{
     --head-font:'Michroma',sans-serif;
-    --w1:rgba(255,255,255,.97); --w2:rgba(255,255,255,.78); --w3:rgba(255,255,255,.58);
-    --glass:rgba(255,255,255,.055); --glass-hi:rgba(255,255,255,.20); --hair:rgba(255,255,255,.10);
+    --w1:rgba(255,255,255,.97); --w2:rgba(255,255,255,.78); --w3:rgba(255,255,255,.56);
+    --glass:rgba(255,255,255,.05); --glass-2:rgba(255,255,255,.08); --glass-hi:rgba(255,255,255,.20); --hair:rgba(255,255,255,.10);
     --ease:cubic-bezier(.22,1,.36,1);
   }
   html,body{height:100%}
-  body{background:#000;color:var(--w1);overflow-x:hidden;font-family:'Space Grotesk',system-ui,sans-serif;font-weight:300;-webkit-font-smoothing:antialiased}
+  body{background:#000;color:var(--w1);overflow-x:hidden;color-scheme:dark;
+    font-family:'Space Grotesk',system-ui,sans-serif;font-weight:300;-webkit-font-smoothing:antialiased}
   #space{position:fixed;inset:0;z-index:0;display:block}
   .vignette{position:fixed;inset:0;z-index:1;pointer-events:none;
-    background:linear-gradient(180deg,rgba(0,0,0,.5),transparent 16%,transparent 64%,rgba(0,0,0,.5))}
-  .ui{position:relative;z-index:2}
+    background:linear-gradient(180deg,rgba(0,0,0,.55),transparent 14%,transparent 62%,rgba(0,0,0,.6))}
+  .ui{position:relative;z-index:2;max-width:1240px;margin:0 auto;padding:0 28px}
 
-  header{display:flex;align-items:center;justify-content:space-between;padding:26px 40px}
+  header{display:flex;align-items:center;justify-content:space-between;padding:24px 0}
   .brand{font-family:'Michroma',sans-serif;font-size:16px;letter-spacing:.26em;text-transform:uppercase;
     background:linear-gradient(180deg,#fff,#aeb6c8);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .nav{display:flex;gap:30px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--w2)}
+  .nav{display:flex;gap:28px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--w2)}
   .nav span{cursor:pointer;transition:color .3s var(--ease)} .nav span:hover{color:#fff}
 
-  .hero{position:relative;text-align:center;padding:12vh 24px 7vh}
-  .hero::before{content:"";position:absolute;left:50%;top:45%;transform:translate(-50%,-50%);
-    width:min(1300px,150vw);height:900px;border-radius:50%;z-index:-1;pointer-events:none;
-    background:radial-gradient(closest-side,rgba(0,0,0,.92),rgba(0,0,0,.66) 38%,rgba(0,0,0,.3) 64%,transparent 84%)}
-
+  .hero{position:relative;text-align:center;padding:8vh 8px 5vh}
+  .hero::before{content:"";position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);
+    width:min(1200px,140vw);height:680px;border-radius:50%;z-index:-1;pointer-events:none;
+    background:radial-gradient(closest-side,rgba(0,0,0,.9),rgba(0,0,0,.62) 40%,rgba(0,0,0,.28) 66%,transparent 84%)}
   .eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;
-    letter-spacing:.32em;text-transform:uppercase;color:#fff;margin-bottom:30px;
-    padding:9px 20px;border-radius:100px;background:rgba(255,255,255,.07);border:1px solid var(--hair);
-    backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
+    letter-spacing:.32em;text-transform:uppercase;color:#fff;margin-bottom:26px;padding:9px 20px;border-radius:100px;
+    background:rgba(255,255,255,.07);border:1px solid var(--hair);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);
     box-shadow:inset 0 1px 0 var(--glass-hi),0 12px 34px rgba(0,0,0,.45)}
   .eyebrow .dot{width:5px;height:5px;border-radius:50%;background:#fff;opacity:.65}
-
-  .hero h1{font-family:var(--head-font);font-size:clamp(24px,3.7vw,48px);font-weight:400;line-height:1.28;letter-spacing:.005em;
+  .hero h1{font-family:var(--head-font);font-size:clamp(23px,3.4vw,44px);font-weight:400;line-height:1.28;letter-spacing:.005em;
     background:linear-gradient(174deg,#ffffff 0%,#eef2fa 34%,#aab2c6 72%,#838ba1 100%);
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;
     filter:drop-shadow(0 3px 26px rgba(0,0,0,.85)) drop-shadow(0 1px 3px rgba(0,0,0,.7))}
-  .hero h1 em{font-style:normal;font-weight:600;
-    background:linear-gradient(174deg,#ffffff,#dfe6f7 60%,#c4ccde);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .hero h1 em{font-style:normal;font-weight:600;background:linear-gradient(174deg,#fff,#dfe6f7 60%,#c4ccde);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .hero p{font-family:'Exo 2',sans-serif;margin:26px auto 0;max-width:600px;font-size:16px;line-height:1.7;color:#eef1f8;text-shadow:0 1px 22px rgba(0,0,0,.95),0 1px 3px rgba(0,0,0,.9)}
 
-  .hero p{font-family:'Exo 2',sans-serif;margin:32px auto 0;max-width:600px;font-size:16px;font-weight:400;line-height:1.75;letter-spacing:.01em;color:#eef1f8;
-    text-shadow:0 1px 22px rgba(0,0,0,.95),0 1px 3px rgba(0,0,0,.9)}
-
-  .search{margin:48px auto 0;max-width:580px;display:flex;align-items:center;gap:14px;padding:17px 24px;border-radius:100px;
+  .glassbar{margin:30px auto 0;max-width:760px;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 22px;border-radius:100px;
     background:var(--glass);backdrop-filter:blur(30px) saturate(1.4);-webkit-backdrop-filter:blur(30px) saturate(1.4);
     border:1px solid var(--hair);box-shadow:inset 0 1px 0 var(--glass-hi),0 30px 70px rgba(0,0,0,.55)}
-  .search svg{width:18px;height:18px;stroke:var(--w2);flex:none}
-  .search span{color:var(--w3);font-size:15px;font-family:'Exo 2',sans-serif}
+  .glassbar svg{width:18px;height:18px;stroke:var(--w2);flex:none}
+  #search{flex:1;background:transparent;border:none;outline:none;color:#fff;font-family:'Exo 2',sans-serif;font-size:15px}
+  #search::placeholder{color:var(--w3)}
+  .btn-personalise{display:inline-flex;align-items:center;gap:8px;flex:none;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+    color:#06080f;background:linear-gradient(180deg,#fff,#cdd4e4);border:none;border-radius:100px;padding:12px 20px;cursor:pointer;transition:transform .3s var(--ease)}
+  .btn-personalise:hover{transform:translateY(-1px)}
+  .btn-personalise.on{color:#fff;background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px var(--hair)}
 
-  .grid{max-width:1100px;margin:8vh auto 9vh;padding:0 28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:24px;perspective:1200px}
-  .card{position:relative;padding:28px;border-radius:28px;cursor:pointer;transform-style:preserve-3d;will-change:transform;
-    background:rgba(255,255,255,.055);backdrop-filter:blur(36px) saturate(1.35);-webkit-backdrop-filter:blur(36px) saturate(1.35);
-    border:1px solid var(--hair);
-    box-shadow:inset 0 1px 0 var(--glass-hi),inset 0 0 36px rgba(255,255,255,.02),0 44px 100px rgba(0,0,0,.62),0 14px 38px rgba(0,0,0,.5);
-    transition:transform .45s var(--ease),box-shadow .45s var(--ease),background .45s var(--ease)}
-  .card:hover{background:rgba(255,255,255,.085);box-shadow:inset 0 1px 0 rgba(255,255,255,.30),0 70px 150px rgba(0,0,0,.8),0 24px 60px rgba(0,0,0,.6)}
-  .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
-  .pill{display:inline-flex;align-items:center;gap:7px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
-    padding:6px 14px;border-radius:100px;background:rgba(255,255,255,.08);border:1px solid var(--hair);color:#fff}
-  .status{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:#fff}
-  .card h3{font-size:21px;font-weight:400;line-height:1.25;letter-spacing:-.01em;margin-bottom:11px;color:#fff}
-  .funder{font-size:13px;color:var(--w2);margin-bottom:24px;font-family:'Exo 2',sans-serif}
-  .meta{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--w2);font-family:'Exo 2',sans-serif;padding-top:18px;border-top:1px solid var(--hair)}
-  .amount{font-weight:600;color:#fff}
+  .controls{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;margin:22px auto 0;max-width:1000px}
+  select{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:500;letter-spacing:.04em;color:var(--w1);
+    background:rgba(255,255,255,.05);border:1px solid var(--hair);border-radius:100px;padding:9px 36px 9px 16px;cursor:pointer;outline:none;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23ffffff' stroke-opacity='.6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+  select:hover{border-color:rgba(255,255,255,.25)}
+  .count{width:100%;text-align:center;margin-top:14px;font-family:'Rajdhani',sans-serif;font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--w3)}
 
-  .overlay{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:30px;
-    background:rgba(0,0,0,.45);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);opacity:0;transition:opacity .5s var(--ease)}
+  .panel{max-width:900px;margin:18px auto 0;padding:24px 26px;border-radius:24px;display:none;
+    background:rgba(255,255,255,.05);backdrop-filter:blur(30px) saturate(1.3);-webkit-backdrop-filter:blur(30px) saturate(1.3);
+    border:1px solid var(--hair);box-shadow:inset 0 1px 0 var(--glass-hi),0 30px 70px rgba(0,0,0,.5)}
+  .panel.open{display:block}
+  .pgroup{margin-bottom:18px}
+  .pgroup:last-of-type{margin-bottom:0}
+  .plabel{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--w2);margin-bottom:11px}
+  .chips{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:500;letter-spacing:.04em;color:var(--w1);
+    background:rgba(255,255,255,.05);border:1px solid var(--hair);border-radius:100px;padding:7px 15px;cursor:pointer;transition:background .25s,border-color .25s}
+  .chip:hover{border-color:rgba(255,255,255,.3)}
+  .chip.sel{background:#fff;color:#06080f;border-color:#fff}
+  .pactions{display:flex;gap:10px;margin-top:22px}
+  .pactions .save{font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#06080f;background:linear-gradient(180deg,#fff,#cdd4e4);border:none;border-radius:100px;padding:10px 22px;cursor:pointer}
+  .pactions .clear{font-family:'Rajdhani',sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--w2);background:transparent;border:1px solid var(--hair);border-radius:100px;padding:10px 18px;cursor:pointer}
+
+  .grid{margin:36px auto 6vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px;perspective:1400px}
+  .card{position:relative;padding:24px;border-radius:24px;cursor:pointer;transform-style:preserve-3d;will-change:transform;
+    background:rgba(255,255,255,.05);border:1px solid var(--hair);
+    box-shadow:inset 0 1px 0 var(--glass-hi),0 30px 70px rgba(0,0,0,.55),0 10px 26px rgba(0,0,0,.45);
+    transition:transform .4s var(--ease),box-shadow .4s var(--ease),background .4s var(--ease)}
+  .card:hover{background:rgba(255,255,255,.085);box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 50px 110px rgba(0,0,0,.75),0 18px 44px rgba(0,0,0,.55)}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-family:'Rajdhani',sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    padding:5px 12px;border-radius:100px;background:rgba(255,255,255,.08);border:1px solid var(--hair);color:#fff;white-space:nowrap}
+  .status{font-family:'Rajdhani',sans-serif;font-size:12.5px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:var(--w2);white-space:nowrap}
+  .status.open{color:#bff5dd} .status.forthcoming{color:#ffe2ad} .status.rolling{color:#bcd4ff}
+  .card h3{font-size:18px;font-weight:400;line-height:1.3;letter-spacing:-.005em;margin-bottom:9px;color:#fff;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .funder{font-family:'Exo 2',sans-serif;font-size:13px;color:var(--w2);margin-bottom:18px;
+    display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .meta{display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:'Exo 2',sans-serif;font-size:12.5px;color:var(--w2);padding-top:15px;border-top:1px solid var(--hair)}
+  .amount{font-weight:600;color:#fff;white-space:nowrap}
+  .showmore{display:block;margin:0 auto 9vh;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#fff;
+    background:rgba(255,255,255,.06);border:1px solid var(--hair);border-radius:100px;padding:14px 34px;cursor:pointer;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);transition:background .3s var(--ease)}
+  .showmore:hover{background:rgba(255,255,255,.12)}
+  .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--w2);font-family:'Exo 2',sans-serif}
+
+  .overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:30px;
+    background:rgba(0,0,0,.5);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);opacity:0;transition:opacity .45s var(--ease)}
   .overlay.show{display:flex;opacity:1}
-  .sheet{width:100%;max-width:540px;padding:40px;border-radius:36px;transform:scale(.92) translateY(20px);opacity:0;
-    background:rgba(255,255,255,.07);backdrop-filter:blur(50px) saturate(1.5);-webkit-backdrop-filter:blur(50px) saturate(1.5);
-    border:1px solid rgba(255,255,255,.18);
-    box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 70px 170px rgba(0,0,0,.82),0 24px 60px rgba(0,0,0,.6);
-    transition:transform .6s var(--ease),opacity .6s var(--ease)}
+  .sheet{width:100%;max-width:560px;max-height:88vh;overflow-y:auto;padding:38px;border-radius:34px;transform:scale(.93) translateY(18px);opacity:0;
+    background:rgba(255,255,255,.07);backdrop-filter:blur(48px) saturate(1.5);-webkit-backdrop-filter:blur(48px) saturate(1.5);
+    border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.32),0 70px 170px rgba(0,0,0,.82),0 24px 60px rgba(0,0,0,.6);
+    transition:transform .55s var(--ease),opacity .55s var(--ease)}
   .overlay.show .sheet{transform:scale(1) translateY(0);opacity:1}
   .sheet .top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
-  .sheet h2{font-family:var(--head-font);font-size:24px;font-weight:400;line-height:1.25;letter-spacing:.005em;
+  .sheet h2{font-family:var(--head-font);font-size:22px;font-weight:400;line-height:1.3;letter-spacing:.005em;
     background:linear-gradient(174deg,#fff,#c0c8da);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .sheet .funder{font-size:14px;margin:10px 0 0}
   .close{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--hair);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-size:17px;transition:background .3s var(--ease)}
   .close:hover{background:rgba(255,255,255,.16)}
-  .tags{display:flex;flex-wrap:wrap;gap:9px;margin:26px 0}
+  .tags{display:flex;flex-wrap:wrap;gap:9px;margin:24px 0 0}
+  .seclabel{font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--w3);margin:24px 0 9px}
   .sheet .desc{font-family:'Exo 2',sans-serif;font-size:15px;line-height:1.75;color:#e7eaf2}
   .verified{display:flex;align-items:center;gap:8px;margin-top:24px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--w3)}
-  .apply{display:inline-flex;align-items:center;gap:10px;margin-top:26px;padding:15px 30px;border-radius:100px;border:none;cursor:pointer;
-    font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#06080f;
-    background:linear-gradient(180deg,#fff,#cdd4e4);transition:transform .4s var(--ease),box-shadow .4s var(--ease)}
+  .apply{display:inline-flex;align-items:center;gap:10px;margin-top:24px;padding:15px 30px;border-radius:100px;border:none;cursor:pointer;text-decoration:none;
+    font-family:'Rajdhani',sans-serif;font-size:16px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#06080f;background:linear-gradient(180deg,#fff,#cdd4e4);transition:transform .4s var(--ease),box-shadow .4s var(--ease)}
   .apply:hover{transform:translateY(-2px);box-shadow:0 18px 50px rgba(255,255,255,.22)}
 
-  .fontpick{position:relative;z-index:3;margin:40px auto 0;width:fit-content;max-width:92vw;flex-wrap:wrap;justify-content:center;display:flex;align-items:center;gap:6px;
-    padding:7px 9px;border-radius:100px;background:rgba(255,255,255,.06);border:1px solid var(--hair);
-    backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 16px 44px rgba(0,0,0,.5)}
-  .fontpick .lbl{font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--w3);padding:0 8px}
-  .fontpick button{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;letter-spacing:.06em;color:var(--w2);
-    background:transparent;border:none;padding:7px 13px;border-radius:100px;cursor:pointer;transition:background .25s,color .25s}
-  .fontpick button:hover{color:#fff}
-  .fontpick button.on{background:rgba(255,255,255,.14);color:#fff}
+  .fontpick{position:relative;z-index:3;margin:26px auto 0;width:fit-content;max-width:92vw;flex-wrap:wrap;justify-content:center;display:flex;align-items:center;gap:6px;
+    padding:7px 9px;border-radius:100px;background:rgba(255,255,255,.05);border:1px solid var(--hair);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 16px 44px rgba(0,0,0,.5)}
+  .fontpick .lbl{font-family:'Rajdhani',sans-serif;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--w3);padding:0 8px}
+  .fontpick button{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;letter-spacing:.06em;color:var(--w2);background:transparent;border:none;padding:7px 13px;border-radius:100px;cursor:pointer;transition:background .25s,color .25s}
+  .fontpick button:hover{color:#fff} .fontpick button.on{background:rgba(255,255,255,.14);color:#fff}
+  .site-foot{text-align:center;padding:30px;font-family:'Exo 2',sans-serif;font-size:12px;color:var(--w3);position:relative;z-index:2}
 </style>
 </head>
 <body>
@@ -119,100 +147,80 @@
     <div class="eyebrow"><span class="dot"></span>Open funding intelligence · worldwide</div>
     <h1>Funding from <em>every</em><br>corner of the world.</h1>
     <p>One borderless index of live research and innovation funding — verified against the source, ranked for you.</p>
-    <div class="search">
+
+    <div class="glassbar">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <span>Search grants by keyword, funder, or topic…</span>
+      <input id="search" type="search" placeholder="Search grants by keyword, funder, or topic…" autocomplete="off" spellcheck="false" />
+      <button class="btn-personalise" id="pToggle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg>Personalise</button>
+    </div>
+
+    <div class="controls">
+      <select id="sort">
+        <option value="recommended">Recommended for you</option>
+        <option value="toprated">Top rated</option>
+        <option value="deadline">Deadline · soonest</option>
+        <option value="funding">Funding · largest</option>
+      </select>
+      <select id="f-status"><option value="">All statuses</option></select>
+      <select id="f-region"><option value="">All regions</option></select>
+      <select id="f-sector"><option value="">All sectors</option></select>
+      <select id="f-org"><option value="">All organisations</option></select>
+      <div class="count" id="count">Loading…</div>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="pgroup"><div class="plabel">I am a…</div><div class="chips" id="c-stage"></div></div>
+      <div class="pgroup"><div class="plabel">Fields I care about</div><div class="chips" id="c-fields"></div></div>
+      <div class="pgroup"><div class="plabel">Where I'm based / applying from</div><div class="chips" id="c-region"></div></div>
+      <div class="pactions"><button class="save" id="pSave">Save &amp; personalise</button><button class="clear" id="pClear">Clear</button></div>
+    </div>
+
+    <div class="fontpick" id="fontpick">
+      <span class="lbl">Headline font</span>
+      <button data-f="'Michroma',sans-serif" class="on">Michroma</button>
+      <button data-f="'Sora',sans-serif">Sora</button>
+      <button data-f="'Chakra Petch',sans-serif">Chakra</button>
+      <button data-f="'Rajdhani',sans-serif">Rajdhani</button>
+      <button data-f="'Space Grotesk',sans-serif">Grotesk</button>
     </div>
   </section>
 
-  <div class="fontpick" id="fontpick">
-    <span class="lbl">Headline font</span>
-    <button data-f="'Michroma',sans-serif" class="on">Michroma</button>
-    <button data-f="'Sora',sans-serif">Sora</button>
-    <button data-f="'Chakra Petch',sans-serif">Chakra</button>
-    <button data-f="'Rajdhani',sans-serif">Rajdhani</button>
-    <button data-f="'Space Grotesk',sans-serif">Grotesk</button>
-  </div>
-
   <section class="grid" id="grid"></section>
+  <button class="showmore" id="showmore" style="display:none"></button>
 </div>
 
 <div class="overlay" id="overlay">
-  <div class="sheet" role="dialog" aria-modal="true">
-    <div class="top"><div><h2 id="mTitle"></h2><p class="funder" id="mFunder"></p></div>
-      <button class="close" id="mClose" aria-label="Close">✕</button></div>
-    <div class="tags" id="mTags"></div>
-    <p class="desc" id="mDesc"></p>
-    <div class="verified"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12l4 4L19 6"/></svg><span id="mVerified"></span></div>
-    <button class="apply">Apply / view grant
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M7 17 17 7M9 7h8v8"/></svg></button>
-  </div>
+  <div class="sheet" role="dialog" aria-modal="true"><div id="sheet-body"></div></div>
 </div>
+
+<footer class="site-foot">© 2026 GrantGlobe · concept build on live data · not financial or legal advice</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-const GRANTS=[
- {t:"Future data services sandpit",f:"Economic and Social Research Council",fy:true,dl:"16 Jul 2026",a:"Up to £1.5M",
-  d:"A sandpit to transform discovery of, and access to, the UK's longitudinal data services — convening researchers, data scientists and infrastructure leads.",v:"Verified against funder · 23 Jun 2026"},
- {t:"Hybrid algorithms for quantum advantage",f:"Engineering and Physical Sciences Research Council",fy:false,dl:"30 Sep 2026",a:"Up to £2.28M",
-  d:"Support for teams developing hybrid classical–quantum algorithms that demonstrate practical quantum advantage on near-term hardware.",v:"Verified against funder · 23 Jun 2026"},
- {t:"Grand Challenges Africa",f:"African Academy of Sciences",fy:true,dl:"12 Aug 2026",a:"Up to $100K",
-  d:"Seed and scaling awards for African-led research tackling health, climate and development challenges across the continent.",v:"Verified against funder · 23 Jun 2026"},
- {t:"Early independence: clinician scientist fellowship",f:"Medical Research Council",fy:true,dl:"2 Sep 2026",a:"Up to £1.2M",
-  d:"A flagship fellowship enabling early-career clinicians to establish an independent research programme bridging laboratory and clinic.",v:"Verified against funder · 23 Jun 2026"},
- {t:"Open competition — emerging fields",f:"Dutch Research Council (NWO)",fy:false,dl:"Rolling",a:"Not specified by funder",
-  d:"Curiosity-driven funding for interdisciplinary teams pursuing emerging research directions, with no thematic constraints.",v:"Verified against funder · 23 Jun 2026"},
- {t:"Marsden Fund standard grant",f:"Royal Society Te Apārangi",fy:false,dl:"4 Nov 2026",a:"Up to NZ$960K",
-  d:"New Zealand's premier fund for investigator-led research excellence across all disciplines, from the sciences to the humanities.",v:"Verified against funder · 23 Jun 2026"}
-];
-const grid=document.getElementById('grid');
-GRANTS.forEach((g,i)=>{
-  const el=document.createElement('div');el.className='card';el.dataset.i=i;
-  el.innerHTML=`<div class="row">
-      <span class="pill">${g.fy?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg> For you':'Open call'}</span>
-      <span class="status">${g.dl==='Rolling'?'Rolling':'Open'}</span></div>
-    <h3>${g.t}</h3><div class="funder">${g.f}</div>
-    <div class="meta"><span>${g.dl==='Rolling'?'Rolling deadline':'Closes '+g.dl}</span><span class="amount">${g.a.replace('Up to ','').replace('Not specified by funder','—')}</span></div>`;
-  el.addEventListener('click',()=>openSheet(i));
-  el.addEventListener('pointermove',e=>{const r=el.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
-    el.style.transform=`translateY(-10px) perspective(1000px) rotateX(${(-py*7).toFixed(2)}deg) rotateY(${(px*7).toFixed(2)}deg)`;});
-  el.addEventListener('pointerleave',()=>{el.style.transform='';});
-  grid.appendChild(el);
-});
-const ov=document.getElementById('overlay');
-function openSheet(i){const g=GRANTS[i];
-  mTitle.textContent=g.t;mFunder.textContent=g.f;mDesc.textContent=g.d;mVerified.textContent=g.v;
-  mTags.innerHTML=`<span class="pill">${g.dl==='Rolling'?'Rolling':'Closes '+g.dl}</span><span class="pill">${g.a}</span>`;
-  ov.classList.add('show');}
-function closeSheet(){ov.classList.remove('show');}
-mClose.onclick=closeSheet;ov.addEventListener('click',e=>{if(e.target===ov)closeSheet()});
-addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
-document.querySelectorAll('#fontpick button').forEach(b=>b.addEventListener('click',()=>{
-  document.documentElement.style.setProperty('--head-font',b.dataset.f);
-  document.querySelectorAll('#fontpick button').forEach(x=>x.classList.remove('on'));b.classList.add('on');}));
-
-const cv=document.getElementById('space');
-const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x000000,0.0009);
-const cam=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,1,3000);cam.position.z=620;
-function field(n,size,op,rmin,rmax){
-  const geo=new THREE.BufferGeometry(),p=new Float32Array(n*3);
-  for(let i=0;i<n;i++){const r=rmin+Math.random()*(rmax-rmin),th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
-    p[i*3]=r*Math.sin(ph)*Math.cos(th);p[i*3+1]=r*Math.sin(ph)*Math.sin(th);p[i*3+2]=r*Math.cos(ph);}
-  geo.setAttribute('position',new THREE.BufferAttribute(p,3));
-  return new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size,sizeAttenuation:true,transparent:true,opacity:op,depthWrite:false}));
-}
-const near=field(2400,1.9,0.8,150,780),far=field(2000,1.0,0.32,520,1300);
-scene.add(near);scene.add(far);
-let mx=0,my=0,tx=0,ty=0;
-addEventListener('pointermove',e=>{tx=(e.clientX/innerWidth-.5);ty=(e.clientY/innerHeight-.5)});
-function resize(){renderer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
-addEventListener('resize',resize);resize();
-(function loop(){requestAnimationFrame(loop);
-  near.rotation.y+=0.00045;near.rotation.x+=0.00012;far.rotation.y+=0.00026;
-  mx+=(tx-mx)*0.03;my+=(ty-my)*0.03;cam.position.x=mx*150;cam.position.y=-my*150;cam.lookAt(scene.position);
-  renderer.render(scene,cam);})();
+(function(){
+  const cv=document.getElementById('space');
+  if(!window.THREE) return;
+  const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x000000,0.0009);
+  const cam=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,1,3000);cam.position.z=620;
+  function field(n,size,op,rmin,rmax){const geo=new THREE.BufferGeometry(),p=new Float32Array(n*3);
+    for(let i=0;i<n;i++){const r=rmin+Math.random()*(rmax-rmin),th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1);
+      p[i*3]=r*Math.sin(ph)*Math.cos(th);p[i*3+1]=r*Math.sin(ph)*Math.sin(th);p[i*3+2]=r*Math.cos(ph);}
+    geo.setAttribute('position',new THREE.BufferAttribute(p,3));
+    return new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size,sizeAttenuation:true,transparent:true,opacity:op,depthWrite:false}));}
+  const near=field(1900,1.9,0.8,150,780),far=field(1500,1.0,0.32,520,1300);scene.add(near);scene.add(far);
+  let mx=0,my=0,tx=0,ty=0;
+  addEventListener('pointermove',e=>{tx=(e.clientX/innerWidth-.5);ty=(e.clientY/innerHeight-.5)});
+  function resize(){renderer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+  addEventListener('resize',resize);resize();
+  (function loop(){requestAnimationFrame(loop);near.rotation.y+=0.00042;near.rotation.x+=0.0001;far.rotation.y+=0.00024;
+    mx+=(tx-mx)*0.03;my+=(ty-my)*0.03;cam.position.x=mx*150;cam.position.y=-my*150;cam.lookAt(scene.position);renderer.render(scene,cam);})();
+  document.querySelectorAll('#fontpick button').forEach(b=>b.addEventListener('click',()=>{
+    document.documentElement.style.setProperty('--head-font',b.dataset.f);
+    document.querySelectorAll('#fontpick button').forEach(x=>x.classList.remove('on'));b.classList.add('on');}));
+})();
 </script>
+<script src="app.js"></script>
 </body>
 </html>
