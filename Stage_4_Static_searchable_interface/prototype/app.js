@@ -151,7 +151,7 @@ function render(){
 function statusClass(s){return (s||'').toLowerCase().replace(/\s+/g,'-');}
 function card(g){
   const c=el('div','card');c.dataset.id=g.id;
-  const lead=g._forYou?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg> For you':esc((g.thematic_sectors||['Research'])[0]);
+  const lead=g._forYou?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg><span class="pt">For you</span>':'<span class="pt">'+esc((g.thematic_sectors||['Research'])[0])+'</span>';
   c.innerHTML=`<div class="row"><span class="pill">${lead}</span><span class="status ${statusClass(g.current_status)}">${esc(g.current_status||'')}</span></div>
     <h3>${esc(g.grant_title)}</h3><div class="funder">${esc(g.funder_name)}</div>
     <div class="meta"><span>${esc(deadlineText(g))}</span><span class="amount">${esc(amountShort(g))}</span></div>`;
