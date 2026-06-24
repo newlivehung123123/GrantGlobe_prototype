@@ -49,7 +49,17 @@ function buildFilters(grants){
   fill('#f-org',uniq(grants,g=>g.organisation_types));
 }
 function isForIndividuals(g){if((g.individual_eligibility||[]).length)return true;return (g.organisation_types||[]).some(o=>/individual/i.test(o));}
-function indTier(g){const ot=g.organisation_types||[];if((g.individual_eligibility||[]).length||ot.some(o=>/individual/i.test(o)))return 0;if(!ot.length)return 1;return 2;}
+function indTier(g){
+  // tier 0 = a GENUINE individual signal (named individual eligibility, e.g.
+  // "Early Career Researcher" — fellowships/individual schemes). tier 1 =
+  // possibly-individual (eligibility unspecified, OR funder lists "Individuals"
+  // among many eligible org types — a broad catch-all on grants.gov programmes).
+  // tier 2 = explicitly organisation-only.
+  if((g.individual_eligibility||[]).length)return 0;
+  const ot=g.organisation_types||[];
+  if(!ot.length||ot.some(o=>/individual/i.test(o)))return 1;
+  return 2;
+}
 function fill(sel,vals){const s=$(sel);vals.forEach(v=>{const o=el('option');o.value=v;o.textContent=v;s.appendChild(o);});}
 function buildPanel(grants){
   chips('#c-stage',STAGE_OPTIONS.map(o=>({v:o.v,label:o.label})),'single');
