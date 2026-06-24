@@ -45,8 +45,11 @@ function buildFilters(grants){
   fill('#f-status',[...new Set(grants.map(g=>g.current_status).filter(Boolean))].sort());
   fill('#f-region',uniq(grants,g=>[...(g.applicant_base_regions||[]),...(g.geographic_focus_regions||[])]));
   fill('#f-sector',uniq(grants,g=>g.thematic_sectors));
+  const indOpt=el('option');indOpt.value='__individuals__';indOpt.textContent='Individuals';$('#f-org').appendChild(indOpt);
   fill('#f-org',uniq(grants,g=>g.organisation_types));
 }
+function isForIndividuals(g){if((g.individual_eligibility||[]).length)return true;return (g.organisation_types||[]).some(o=>/individual/i.test(o));}
+function indTier(g){const ot=g.organisation_types||[];if((g.individual_eligibility||[]).length||ot.some(o=>/individual/i.test(o)))return 0;if(!ot.length)return 1;return 2;}
 function fill(sel,vals){const s=$(sel);vals.forEach(v=>{const o=el('option');o.value=v;o.textContent=v;s.appendChild(o);});}
 function buildPanel(grants){
   chips('#c-stage',STAGE_OPTIONS.map(o=>({v:o.v,label:o.label})),'single');
@@ -77,12 +80,17 @@ function applyAll(){
     if(st&&g.current_status!==st)return false;
     if(rg){const a=[...(g.applicant_base_regions||[]),...(g.geographic_focus_regions||[])];if(!a.includes(rg))return false;}
     if(sc&&!(g.thematic_sectors||[]).includes(sc))return false;
-    if(ot&&!(g.organisation_types||[]).includes(ot))return false;
+    if(ot){if(ot==='__individuals__'){if(!isForIndividuals(g))return false;}else if(!(g.organisation_types||[]).includes(ot))return false;}
     return true;});
   if(q.length>0){
     const fuse=new Fuse(r,{keys:[{name:'grant_title',weight:.4},{name:'funder_name',weight:.3},{name:'description',weight:.15},{name:'thematic_sectors',weight:.15}],threshold:.35,ignoreLocation:true,minMatchCharLength:2});
     r=fuse.search(q).map(x=>x.item);r.forEach(g=>g._forYou=false);
   } else r=order(r);
+  // Individual-first default: when not scoped to a specific organisation type
+  // (and not on an explicit deadline/funding sort), float opportunities open to
+  // individuals to the top — clearly-individual first, then unspecified, then
+  // organisation-only last. Stable, so ranking/relevance is preserved within tier.
+  if(!ot && state.sort!=='deadline' && state.sort!=='funding') r=r.slice().sort((a,b)=>indTier(a)-indTier(b));
   state.filtered=r; render();
 }
 function globalPrior(g){return typeof g._rank_score==='number'?g._rank_score:.6;}
