@@ -29,6 +29,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('#pSave').addEventListener('click',()=>{saveProfile();$('#panel').classList.remove('open');$('#pToggle').classList.remove('on');state.sort='recommended';$('#sort').value='recommended';state.shown=BATCH;applyAll();});
   $('#pClear').addEventListener('click',()=>{state.profile=null;try{localStorage.removeItem(LS_PROFILE)}catch(e){}syncChips();updatePersonaliseBtn();state.shown=BATCH;applyAll();});
   $('#showmore').addEventListener('click',()=>{state.shown+=BATCH;render();});
+  // view toggle (grid / list)
+  const savedView=(localStorage.getItem('gg_view')||'grid');
+  if(savedView==='list')$('#grid').classList.add('list');
+  document.querySelectorAll('#viewtoggle button').forEach(b=>{
+    b.classList.toggle('on',b.dataset.view===savedView);
+    b.addEventListener('click',()=>{
+      const v=b.dataset.view;$('#grid').classList.toggle('list',v==='list');
+      document.querySelectorAll('#viewtoggle button').forEach(x=>x.classList.toggle('on',x===b));
+      try{localStorage.setItem('gg_view',v)}catch(e){}
+    });
+  });
   $('#overlay').addEventListener('click',e=>{if(e.target===$('#overlay'))closeModal();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 });
@@ -156,7 +167,7 @@ function card(g){
     <h3>${esc(g.grant_title)}</h3><div class="funder">${esc(g.funder_name)}</div>
     <div class="meta"><span>${esc(deadlineText(g))}</span><span class="amount">${esc(amountShort(g))}</span></div>`;
   c.addEventListener('click',()=>openModal(g));
-  c.addEventListener('pointermove',e=>{const r=c.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
+  c.addEventListener('pointermove',e=>{if(document.getElementById('grid').classList.contains('list'))return;const r=c.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
     c.style.transform=`translateY(-8px) perspective(1100px) rotateX(${(-py*5).toFixed(2)}deg) rotateY(${(px*5).toFixed(2)}deg)`;});
   c.addEventListener('pointerleave',()=>{c.style.transform='';});
   return c;

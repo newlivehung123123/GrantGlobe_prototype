@@ -107,6 +107,17 @@
     background:rgba(255,255,255,.06);border:1px solid var(--hair);border-radius:100px;padding:14px 34px;cursor:pointer;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);transition:background .3s var(--ease)}
   .showmore:hover{background:rgba(255,255,255,.12)}
   .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--w2);font-family:var(--site-font)}
+  .viewtoggle{display:flex;justify-content:flex-end;gap:8px;margin:22px 0 -6px}
+  .viewtoggle button{width:40px;height:40px;border-radius:12px;border:1px solid var(--hair);background:rgba(255,255,255,.05);color:var(--w2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .25s var(--ease),color .25s var(--ease)}
+  .viewtoggle button:hover{color:#fff}
+  .viewtoggle button.on{background:rgba(255,255,255,.14);color:#fff}
+  .viewtoggle svg{width:18px;height:18px}
+  .grid.list{grid-template-columns:1fr;gap:12px}
+  .grid.list .card{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"r m" "t m" "f m";column-gap:26px;row-gap:5px;align-items:center;padding:18px 26px}
+  .grid.list .row{grid-area:r;margin-bottom:2px}
+  .grid.list h3{grid-area:t;-webkit-line-clamp:1;font-size:18px;margin-bottom:0}
+  .grid.list .funder{grid-area:f;margin-bottom:0}
+  .grid.list .meta{grid-area:m;border-top:none;padding-top:0;flex-direction:column;align-items:flex-end;justify-content:center;gap:6px;white-space:nowrap}
 
   .overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:30px;
     background:rgba(0,0,0,.5);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);opacity:0;transition:opacity .45s var(--ease)}
@@ -151,6 +162,11 @@
     select{flex:1 1 100%;max-width:100%}
     .panel{padding:20px 18px}
     .grid{grid-template-columns:minmax(0,1fr);gap:16px}
+    .viewtoggle{display:none}
+    .grid.list .card{display:block;grid-template-columns:none;padding:20px}
+    .grid.list h3{-webkit-line-clamp:3;font-size:17px;margin-bottom:9px}
+    .grid.list .funder{margin-bottom:18px}
+    .grid.list .meta{flex-direction:row;align-items:center;justify-content:space-between;border-top:1px solid var(--hair);padding-top:15px}
     .card{padding:20px;border-radius:22px}
     .card h3{font-size:17px}
     .overlay{padding:16px}
@@ -175,9 +191,9 @@
   </header>
 
   <section class="hero">
-    <div class="eyebrow"><span class="dot"></span>Open funding intelligence · worldwide</div>
+    <div class="eyebrow"><span class="dot"></span>Your Hub for Global Funding</div>
     <h1>Funding from <em>every</em><br>corner of the world.</h1>
-    <p>One borderless index of live research and innovation funding — verified against the source, ranked for you.</p>
+    <p>Most geographically and institutionally comprehensive global funding search engine — verified against the source, ranked for you.</p>
 
     <div class="glassbar">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
@@ -216,6 +232,10 @@
     </div>
   </section>
 
+  <div class="viewtoggle" id="viewtoggle">
+    <button data-view="grid" class="on" aria-label="Grid view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+    <button data-view="list" aria-label="List view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.6" cy="6" r="1.2"/><circle cx="3.6" cy="12" r="1.2"/><circle cx="3.6" cy="18" r="1.2"/></svg></button>
+  </div>
   <section class="grid" id="grid"></section>
   <button class="showmore" id="showmore" style="display:none"></button>
 </div>
@@ -224,7 +244,7 @@
   <div class="sheet" role="dialog" aria-modal="true"><div id="sheet-body"></div></div>
 </div>
 
-<footer class="site-foot">© 2026 GrantGlobe · concept build on live data · not financial or legal advice</footer>
+<footer class="site-foot">© 2026 GrantGlobe · live data extracted daily · not financial or legal advice</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -252,6 +272,6 @@
     document.querySelectorAll('#fontpick button').forEach(x=>x.classList.remove('on'));b.classList.add('on');}));
 })();
 </script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
