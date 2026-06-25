@@ -361,11 +361,25 @@ def _has_bad_url_pattern(url: str | None) -> bool:
     return any(p.search(url) for p in _BLOCKED_COMPILED)
 
 
+# Connectors whose URLs are currently known-broken and must be excluded from the
+# live catalog regardless of the liveness probe (so they stay out even on GG_FAST
+# builds, which skip liveness). api_nserc_canada builds its detail URL from a
+# title-slug guess; the NSERC site moved to nserc-crsng.canada.ca and every
+# guessed slug now 404s (verified: 33/33 dead). Remove this entry once the NSERC
+# connector is rebuilt to read authoritative URLs.
+_EXCLUDE_DOMAINS: frozenset[str] = frozenset({"api_nserc_canada"})
+
+
 def _filter_bad_url_patterns(grants: list[dict]) -> list[dict]:
-    """Remove records whose primary URL matches a known non-grant-page pattern."""
+    """Remove records whose primary URL matches a known non-grant-page pattern,
+    or whose connector is on the known-broken exclusion list."""
     good: list[dict] = []
     dropped = 0
+    excluded = 0
     for g in grants:
+        if g.get("domain") in _EXCLUDE_DOMAINS:
+            excluded += 1
+            continue
         url = g.get("application_portal_url") or g.get("source_url") or ""
         if _has_bad_url_pattern(url):
             dropped += 1
@@ -373,6 +387,8 @@ def _filter_bad_url_patterns(grants: list[dict]) -> list[dict]:
             good.append(g)
     if dropped:
         print(f"  URL pattern filter: removed {dropped} record(s) with non-grant URLs")
+    if excluded:
+        print(f"  Connector exclusion: removed {excluded} record(s) from known-broken connectors")
     return good
 
 
@@ -636,6 +652,35 @@ def _serialise_value(key: str, value) -> object:
     return value
 
 
+_ZERO_WIDTH = dict.fromkeys(
+    [0x200B, 0x200C, 0x200D, 0xFEFF, 0x00AD],  # ZWSP, ZWNJ, ZWJ, BOM, soft-hyphen
+    None,
+)
+
+
+def _clean_text(value: str) -> str:
+    """Normalise a free-text field for public display.
+
+    Repeatedly unescape HTML entities until stable (some sources double- or
+    triple-encode, e.g. '&amp;rsquo;' -> '&rsquo;' -> '’'), strip
+    zero-width / BOM characters, convert non-breaking spaces to normal spaces,
+    and collapse runs of whitespace. Idempotent.
+    """
+    prev = None
+    cur = value
+    # Cap iterations defensively; convergence is normally reached in <=3 passes.
+    for _ in range(5):
+        if cur == prev:
+            break
+        prev = cur
+        cur = html.unescape(cur)
+    cur = cur.translate(_ZERO_WIDTH)
+    # Python's \s matches Unicode whitespace (incl. U+00A0/U+202F non-breaking
+    # spaces), so this both normalises nbsp -> space and collapses runs.
+    cur = _re.sub(r"\s+", " ", cur).strip()
+    return cur
+
+
 def _serialise_row(row: dict) -> dict:
     """Serialise a full database row dict to a JSON-safe dict."""
     result = {key: _serialise_value(key, val) for key, val in row.items()}
@@ -645,7 +690,7 @@ def _serialise_row(row: dict) -> dict:
     # entity codes.
     for _f in ("grant_title", "funder_name", "description"):
         if isinstance(result.get(_f), str):
-            result[_f] = html.unescape(result[_f])
+            result[_f] = _clean_text(result[_f])
     # Restore incorrectly title-cased acronyms in free-text title fields.
     result["grant_title"]  = _fix_acronyms(result.get("grant_title"))
     result["funder_name"]  = _fix_acronyms(result.get("funder_name"))
@@ -719,8 +764,15 @@ def export(include_closed: bool, output_path: Path) -> tuple[int, str]:
     grants = _filter_bad_url_patterns(grants)
 
     # ── URL validation — drop records with broken links ─────────────────
-    print(f"  Validating URLs for {len(grants)} records…")
-    grants = _filter_live_urls(grants)
+    # The per-URL liveness probe is the slow part of the export (network round
+    # trips for thousands of records). GG_FAST=1 skips it for quick code/UI
+    # redeploys; the cheap pattern blocklist and full field-integrity validation
+    # below still run, and the daily scheduled build does the full liveness pass.
+    if os.environ.get("GG_FAST") == "1":
+        print(f"  GG_FAST=1 — skipping network liveness probe for {len(grants)} records")
+    else:
+        print(f"  Validating URLs for {len(grants)} records…")
+        grants = _filter_live_urls(grants)
 
     # ── Field-integrity validation — every record, every field ──────────
     # Checks title/funder/deadline/amount/link on ALL connectors, drops records

@@ -70,7 +70,12 @@ jobs:
       # Idempotent and safe. best-effort (continue-on-error) so a transient
       # source-API hiccup never blocks the export/deploy. Add more sources here
       # as their enrich adapters are built.
+      #
+      # Skipped on push events: a code/UI push doesn't change source data, and
+      # enrich is the second-slowest step. Daily schedule + manual dispatch keep
+      # the catalog enriched/verified.
       - name: Enrich + reconcile (grants.gov)
+        if: github.event_name != 'push'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         working-directory: Stage_2_api_connectors
@@ -82,9 +87,14 @@ jobs:
       # export_grants.py reads DATABASE_URL from the environment and writes
       # Stage_4_Static_searchable_interface/data/grants.json.
       # Remove --include-closed if you want to exclude Closed grants (default).
+      # GG_FAST=1 on push events skips the slow per-URL liveness probe so UI/code
+      # changes go live in ~1-2 min instead of ~7-8. Field validation, ranking
+      # and entity cleaning still run. Scheduled/dispatch builds run the full
+      # liveness pass (GG_FAST unset).
       - name: Export grants to JSON
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GG_FAST: ${{ github.event_name == 'push' && '1' || '' }}
         working-directory: Stage_4_Static_searchable_interface
         run: python export_grants.py
 

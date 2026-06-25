@@ -2,7 +2,7 @@
 /* GrantGlobe concept — functional app on live data (dark-space + glass design) */
 
 const LS_PROFILE='gg_profile_v1', LS_AFFINITY='gg_affinity_v1';
-const state={all:[],filtered:[],sort:'recommended',profile:null,affinity:null,shown:0};
+const state={all:[],filtered:[],sort:'recommended',profile:null,affinity:null,shown:0,view:'grid'};
 const BATCH=60;
 
 const STAGE_OPTIONS=[
@@ -29,16 +29,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('#pSave').addEventListener('click',()=>{saveProfile();$('#panel').classList.remove('open');$('#pToggle').classList.remove('on');state.sort='recommended';$('#sort').value='recommended';state.shown=BATCH;applyAll();});
   $('#pClear').addEventListener('click',()=>{state.profile=null;try{localStorage.removeItem(LS_PROFILE)}catch(e){}syncChips();updatePersonaliseBtn();state.shown=BATCH;applyAll();});
   $('#showmore').addEventListener('click',()=>{state.shown+=BATCH;render();});
-  // view toggle (grid / list)
-  const savedView=(localStorage.getItem('gg_view')||'grid');
-  if(savedView==='list')$('#grid').classList.add('list');
+  // view toggle (grid / list / table / grouped)
+  state.view=(localStorage.getItem('gg_view')||'grid');
+  syncViewButtons();
   document.querySelectorAll('#viewtoggle button').forEach(b=>{
-    b.classList.toggle('on',b.dataset.view===savedView);
-    b.addEventListener('click',()=>{
-      const v=b.dataset.view;$('#grid').classList.toggle('list',v==='list');
-      document.querySelectorAll('#viewtoggle button').forEach(x=>x.classList.toggle('on',x===b));
-      try{localStorage.setItem('gg_view',v)}catch(e){}
-    });
+    b.addEventListener('click',()=>{state.view=b.dataset.view;try{localStorage.setItem('gg_view',state.view)}catch(e){}syncViewButtons();state.shown=BATCH;render();});
   });
   $('#overlay').addEventListener('click',e=>{if(e.target===$('#overlay'))closeModal();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
@@ -146,18 +141,49 @@ function amountFull(g){const s=sym(g.currency),lo=g.funding_amount_min,hi=g.fund
 function esc(v){return v==null?'':String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 /* ---------- render ---------- */
+function syncViewButtons(){document.querySelectorAll('#viewtoggle button').forEach(x=>x.classList.toggle('on',x.dataset.view===state.view));}
+function viewMode(){let v=state.view;if(window.matchMedia('(max-width:768px)').matches&&(v==='table'||v==='grouped'))v='grid';return v;}
 function render(){
-  const grid=$('#grid');grid.innerHTML='';
-  const total=state.filtered.length;
+  const grid=$('#grid');const total=state.filtered.length;const v=viewMode();
   $('#count').textContent=total?(total.toLocaleString()+' opportunit'+(total===1?'y':'ies')):'No grants match your search';
-  if(!total){const e=el('div','empty');e.textContent='No grants match — try clearing a filter.';grid.appendChild(e);$('#showmore').style.display='none';return;}
-  const slice=state.filtered.slice(0,state.shown);
+  grid.className='grid'+(v==='list'?' list':v==='table'?' table':v==='grouped'?' grouped':'');
+  grid.innerHTML='';$('#showmore').style.display='none';
+  if(!total){const e=el('div','empty');e.textContent='No grants match — try clearing a filter.';grid.appendChild(e);return;}
+  if(v==='table'){renderTable(grid,total);return;}
+  if(v==='grouped'){renderGrouped(grid);return;}
   const frag=document.createDocumentFragment();
-  slice.forEach(g=>frag.appendChild(card(g)));
+  state.filtered.slice(0,state.shown).forEach(g=>frag.appendChild(card(g)));
   grid.appendChild(frag);
-  const sm=$('#showmore');
-  if(state.shown<total){sm.style.display='block';sm.textContent='Show more · '+(total-state.shown).toLocaleString()+' remaining';}
-  else sm.style.display='none';
+  if(state.shown<total){const sm=$('#showmore');sm.style.display='block';sm.textContent='Show more · '+(total-state.shown).toLocaleString()+' remaining';}
+}
+function renderTable(grid,total){
+  const t=el('table','gtable');
+  t.innerHTML='<thead><tr><th>Status</th><th>Opportunity</th><th>Funder</th><th>Sector</th><th>Deadline</th><th class="r">Amount</th></tr></thead>';
+  const tb=el('tbody');
+  state.filtered.slice(0,state.shown).forEach(g=>{
+    const tr=el('tr');
+    tr.innerHTML=`<td><span class="status ${statusClass(g.current_status)}">${esc(g.current_status||'')}</span></td>`+
+      `<td class="ttl">${esc(g.grant_title)}</td><td class="fn">${esc(g.funder_name)}</td>`+
+      `<td class="sec">${esc((g.thematic_sectors||['—'])[0])}</td>`+
+      `<td>${esc(deadlineText(g).replace('Closes ',''))}</td><td class="r amt">${esc(amountShort(g))}</td>`;
+    tr.addEventListener('click',()=>openModal(g));tb.appendChild(tr);
+  });
+  t.appendChild(tb);grid.appendChild(t);
+  if(state.shown<total){const sm=$('#showmore');sm.style.display='block';sm.textContent='Show more · '+(total-state.shown).toLocaleString()+' remaining';}
+}
+function renderGrouped(grid){
+  const groups={};
+  state.filtered.forEach(g=>{const r=((g.geographic_focus_regions&&g.geographic_focus_regions[0])||(g.applicant_base_regions&&g.applicant_base_regions[0])||'Other');(groups[r]=groups[r]||[]).push(g);});
+  Object.entries(groups).sort((a,b)=>b[1].length-a[1].length).forEach(([region,arr])=>{
+    const sec=el('div','gsection');
+    sec.innerHTML=`<div class="ghead"><span class="gname">${esc(region)}</span><span class="gcount">${arr.length.toLocaleString()} opportunit${arr.length===1?'y':'ies'}</span></div>`;
+    const row=el('div','grow');
+    arr.slice(0,6).forEach(g=>row.appendChild(card(g)));
+    sec.appendChild(row);
+    if(arr.length>6){const b=el('button','gmore');b.textContent='View all '+arr.length.toLocaleString()+' in '+region+' →';
+      b.addEventListener('click',()=>{$('#f-region').value=region;state.view='grid';try{localStorage.setItem('gg_view','grid')}catch(e){}syncViewButtons();state.shown=BATCH;applyAll();window.scrollTo({top:0,behavior:'smooth'});});sec.appendChild(b);}
+    grid.appendChild(sec);
+  });
 }
 function statusClass(s){return (s||'').toLowerCase().replace(/\s+/g,'-');}
 function card(g){
@@ -167,7 +193,7 @@ function card(g){
     <h3>${esc(g.grant_title)}</h3><div class="funder">${esc(g.funder_name)}</div>
     <div class="meta"><span>${esc(deadlineText(g))}</span><span class="amount">${esc(amountShort(g))}</span></div>`;
   c.addEventListener('click',()=>openModal(g));
-  c.addEventListener('pointermove',e=>{if(document.getElementById('grid').classList.contains('list'))return;const r=c.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
+  c.addEventListener('pointermove',e=>{if(state.view!=='grid')return;const r=c.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
     c.style.transform=`translateY(-8px) perspective(1100px) rotateX(${(-py*5).toFixed(2)}deg) rotateY(${(px*5).toFixed(2)}deg)`;});
   c.addEventListener('pointerleave',()=>{c.style.transform='';});
   return c;

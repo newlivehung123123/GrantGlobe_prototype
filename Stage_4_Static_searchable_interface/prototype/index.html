@@ -118,6 +118,26 @@
   .grid.list h3{grid-area:t;-webkit-line-clamp:1;font-size:18px;margin-bottom:0}
   .grid.list .funder{grid-area:f;margin-bottom:0}
   .grid.list .meta{grid-area:m;border-top:none;padding-top:0;flex-direction:column;align-items:flex-end;justify-content:center;gap:6px;white-space:nowrap}
+  .grid.table{display:block;overflow-x:auto}
+  .gtable{width:100%;border-collapse:collapse;font-family:var(--site-font);min-width:680px}
+  .gtable th{text-align:left;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--w3);padding:0 18px 14px;border-bottom:1px solid var(--hair)}
+  .gtable th.r{text-align:right}
+  .gtable td{padding:15px 18px;font-size:14px;color:var(--w2);border-bottom:1px solid rgba(255,255,255,.05);vertical-align:middle}
+  .gtable td.r{text-align:right}
+  .gtable tbody tr{cursor:pointer;transition:background .2s var(--ease)}
+  .gtable tbody tr:hover{background:rgba(255,255,255,.045)}
+  .gtable td.ttl{color:#fff;font-size:15px;max-width:360px}
+  .gtable td.fn,.gtable td.sec{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gtable td.amt{color:#fff;font-weight:600;white-space:nowrap}
+  .gtable td .status{font-size:12px}
+  .grid.grouped{display:block}
+  .gsection{margin-bottom:42px}
+  .ghead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--hair)}
+  .gname{font-family:var(--site-font);font-size:21px;color:#fff;letter-spacing:.01em}
+  .gcount{font-family:var(--site-font);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--w3)}
+  .grow{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:18px}
+  .gmore{margin-top:18px;font-family:var(--site-font);font-size:14px;font-weight:600;letter-spacing:.06em;color:#bff5dd;background:rgba(150,236,205,.08);border:1px solid rgba(150,236,205,.25);border-radius:100px;padding:10px 22px;cursor:pointer;transition:background .25s var(--ease)}
+  .gmore:hover{background:rgba(150,236,205,.16)}
 
   .overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:30px;
     background:rgba(0,0,0,.5);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);opacity:0;transition:opacity .45s var(--ease)}
@@ -235,6 +255,8 @@
   <div class="viewtoggle" id="viewtoggle">
     <button data-view="grid" class="on" aria-label="Grid view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
     <button data-view="list" aria-label="List view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.6" cy="6" r="1.2"/><circle cx="3.6" cy="12" r="1.2"/><circle cx="3.6" cy="18" r="1.2"/></svg></button>
+    <button data-view="table" aria-label="Table view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="9.5" x2="21" y2="9.5"/><line x1="9.5" y1="9.5" x2="9.5" y2="20"/></svg></button>
+    <button data-view="grouped" aria-label="Grouped by region"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="5" rx="1.5"/><rect x="3" y="10" width="18" height="5" rx="1.5"/><rect x="3" y="17" width="18" height="4" rx="1.5"/></svg></button>
   </div>
   <section class="grid" id="grid"></section>
   <button class="showmore" id="showmore" style="display:none"></button>
@@ -272,6 +294,6 @@
     document.querySelectorAll('#fontpick button').forEach(x=>x.classList.remove('on'));b.classList.add('on');}));
 })();
 </script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
