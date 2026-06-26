@@ -2,8 +2,29 @@
 /* GrantGlobe concept — functional app on live data (dark-space + glass design) */
 
 const LS_PROFILE='gg_profile_v1', LS_AFFINITY='gg_affinity_v1';
-const state={all:[],filtered:[],sort:'recommended',profile:null,affinity:null,shown:0,view:'grid'};
+const state={all:[],filtered:[],sort:'recommended',profile:null,affinity:null,shown:0,view:'grid',mapCountry:null,_map:null,_markers:null};
 const BATCH=60;
+
+/* ISO 3166-1 alpha-2 → [name, lat, lng] for the world-map view (covers every
+   country in the data plus common extras so new data still pins). */
+const COUNTRY={
+  US:['United States',39.8,-98.6],GB:['United Kingdom',54.0,-2.4],NL:['Netherlands',52.1,5.3],
+  AU:['Australia',-25.7,133.8],NO:['Norway',61.0,9.0],FR:['France',46.2,2.2],DE:['Germany',51.2,10.4],
+  FI:['Finland',63.0,26.0],DK:['Denmark',56.0,9.5],IS:['Iceland',64.9,-18.6],SE:['Sweden',62.0,15.0],
+  IE:['Ireland',53.2,-8.0],IN:['India',22.0,79.0],HK:['Hong Kong',22.3,114.2],ZA:['South Africa',-29.0,24.0],
+  NG:['Nigeria',9.1,8.7],KE:['Kenya',0.2,37.9],GH:['Ghana',7.9,-1.0],ET:['Ethiopia',9.1,40.5],
+  TZ:['Tanzania',-6.4,34.9],UG:['Uganda',1.4,32.3],SN:['Senegal',14.5,-14.5],RW:['Rwanda',-1.9,29.9],
+  ZM:['Zambia',-13.1,27.8],CA:['Canada',58.0,-101.0],CH:['Switzerland',46.8,8.2],JP:['Japan',36.5,138.0],
+  AF:['Afghanistan',33.9,67.7],BD:['Bangladesh',23.7,90.4],PK:['Pakistan',30.4,69.3],BE:['Belgium',50.6,4.6],
+  CN:['China',35.0,104.0],CZ:['Czechia',49.8,15.5],EE:['Estonia',58.7,25.6],HR:['Croatia',45.1,15.6],
+  HU:['Hungary',47.2,19.5],IT:['Italy',42.5,12.6],KR:['South Korea',36.4,127.9],KH:['Cambodia',12.6,104.9],
+  LT:['Lithuania',55.3,23.9],LU:['Luxembourg',49.8,6.1],MM:['Myanmar',21.0,96.0],MZ:['Mozambique',-18.0,35.0],
+  NP:['Nepal',28.4,84.1],PH:['Philippines',12.9,121.8],PL:['Poland',52.0,19.4],PT:['Portugal',39.6,-8.0],
+  SA:['Saudi Arabia',24.0,45.1],TR:['Türkiye',39.0,35.2],TW:['Taiwan',23.8,121.0],AE:['United Arab Emirates',24.0,54.0],
+  NZ:['New Zealand',-41.5,172.8],ES:['Spain',40.2,-3.7],AT:['Austria',47.6,14.1],BR:['Brazil',-10.0,-52.0],
+  MX:['Mexico',23.6,-102.5],SG:['Singapore',1.35,103.8],IL:['Israel',31.4,35.0],GR:['Greece',39.0,22.0],
+  RO:['Romania',45.9,25.0],SK:['Slovakia',48.7,19.5],SI:['Slovenia',46.1,14.8],LV:['Latvia',56.9,24.6],
+  UA:['Ukraine',49.0,32.0],QA:['Qatar',25.3,51.2],MA:['Morocco',31.8,-7.1],EG:['Egypt',26.8,30.8]};
 
 const STAGE_OPTIONS=[
   {v:'student',label:'Student / PhD'},{v:'early',label:'Postdoc / Early-career'},
@@ -97,6 +118,7 @@ function applyAll(){
     if(rg){const a=[...(g.applicant_base_regions||[]),...(g.geographic_focus_regions||[])];if(!a.includes(rg))return false;}
     if(sc&&!(g.thematic_sectors||[]).includes(sc))return false;
     if(ot){if(ot==='__individuals__'){if(!isForIndividuals(g))return false;}else if(!(g.organisation_types||[]).includes(ot))return false;}
+    if(state.mapCountry){const cc=[...(g.applicant_base_countries||[]),...(g.geographic_focus_countries||[])];if(!cc.includes(state.mapCountry))return false;}
     return true;});
   if(q.length>0){
     const fuse=new Fuse(r,{keys:[{name:'grant_title',weight:.4},{name:'funder_name',weight:.3},{name:'description',weight:.15},{name:'thematic_sectors',weight:.15}],threshold:.35,ignoreLocation:true,minMatchCharLength:2});
@@ -142,10 +164,18 @@ function esc(v){return v==null?'':String(v).replace(/&/g,'&amp;').replace(/</g,'
 
 /* ---------- render ---------- */
 function syncViewButtons(){document.querySelectorAll('#viewtoggle button').forEach(x=>x.classList.toggle('on',x.dataset.view===state.view));}
-function viewMode(){let v=state.view;if(window.matchMedia('(max-width:768px)').matches&&(v==='table'||v==='grouped'))v='grid';return v;}
+function viewMode(){let v=state.view;if(window.matchMedia('(max-width:768px)').matches&&(v==='table'||v==='grouped'||v==='map'))v='grid';return v;}
 function render(){
   const grid=$('#grid');const total=state.filtered.length;const v=viewMode();
   $('#count').textContent=total?(total.toLocaleString()+' opportunit'+(total===1?'y':'ies')):'No grants match your search';
+  syncMapFilterBanner();
+  const wrap=$('#gmapwrap');
+  if(v==='map'){
+    grid.style.display='none';grid.innerHTML='';$('#showmore').style.display='none';
+    if(wrap)wrap.style.display='block';
+    renderMap();return;
+  }
+  grid.style.display='';if(wrap)wrap.style.display='none';
   grid.className='grid'+(v==='list'?' list':v==='table'?' table':v==='grouped'?' grouped':'');
   grid.innerHTML='';$('#showmore').style.display='none';
   if(!total){const e=el('div','empty');e.textContent='No grants match — try clearing a filter.';grid.appendChild(e);return;}
@@ -155,6 +185,63 @@ function render(){
   state.filtered.slice(0,state.shown).forEach(g=>frag.appendChild(card(g)));
   grid.appendChild(frag);
   if(state.shown<total){const sm=$('#showmore');sm.style.display='block';sm.textContent='Show more · '+(total-state.shown).toLocaleString()+' remaining';}
+}
+
+/* ---------- world-map view ---------- */
+function countryCounts(){
+  const c={};
+  state.filtered.forEach(g=>{
+    const seen=new Set();
+    [...(g.applicant_base_countries||[]),...(g.geographic_focus_countries||[])].forEach(cc=>{
+      if(cc&&COUNTRY[cc]&&!seen.has(cc)){seen.add(cc);c[cc]=(c[cc]||0)+1;}
+    });
+  });
+  return c;
+}
+function renderMap(){
+  if(typeof L==='undefined'){$('#gmaphint').textContent='Map library unavailable — check connection.';return;}
+  if(!state._map){
+    const m=L.map('gmap',{worldCopyJump:true,minZoom:1,maxZoom:6,zoomControl:true,attributionControl:true,
+      scrollWheelZoom:true,zoomSnap:.25}).setView([30,8],1.75);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+      {subdomains:'abcd',maxZoom:8,attribution:'© OpenStreetMap, © CARTO'}).addTo(m);
+    state._map=m;state._markers=L.layerGroup().addTo(m);
+  }
+  const map=state._map;
+  setTimeout(()=>map.invalidateSize(),60);
+  state._markers.clearLayers();
+  const counts=countryCounts();
+  const codes=Object.keys(counts);
+  const max=codes.reduce((a,k)=>Math.max(a,counts[k]),1);
+  let pinned=0;
+  codes.forEach(cc=>{
+    const meta=COUNTRY[cc];if(!meta)return;
+    const n=counts[cc];pinned+=n;
+    const r=Math.round(8+22*(Math.log(n+1)/Math.log(max+1)));  // 8–30px radius, log-scaled
+    const showNum=r>=15;
+    const html=`<div class="gmpin" style="width:${r*2}px;height:${r*2}px"><span class="gmdot"></span>${showNum?`<span class="gmnum">${n.toLocaleString()}</span>`:''}</div>`;
+    const icon=L.divIcon({className:'',html,iconSize:[r*2,r*2],iconAnchor:[r,r]});
+    const mk=L.marker([meta[1],meta[2]],{icon,riseOnHover:true});
+    mk.bindTooltip(`${meta[0]} — ${n.toLocaleString()}`,{direction:'top',offset:[0,-r],className:'gmtt'});
+    mk.bindPopup(`<div class="gmpop"><div class="gmpc">${esc(meta[0])}</div><div class="gmpn">${n.toLocaleString()} opportunit${n===1?'y':'ies'}</div><button class="gmpb" data-cc="${cc}">View these →</button></div>`);
+    mk.on('popupopen',e=>{const b=e.popup.getElement().querySelector('.gmpb');if(b)b.addEventListener('click',()=>setMapCountry(cc));});
+    state._markers.addLayer(mk);
+  });
+  $('#gmaphint').textContent=codes.length?`${codes.length} countries · click a pin to filter`:'No country-tagged opportunities in this view';
+}
+function setMapCountry(cc){
+  state.mapCountry=cc;state.view='grid';try{localStorage.setItem('gg_view','grid')}catch(e){}
+  syncViewButtons();state.shown=BATCH;applyAll();window.scrollTo({top:0,behavior:'smooth'});
+}
+function clearMapCountry(){state.mapCountry=null;state.shown=BATCH;applyAll();}
+function syncMapFilterBanner(){
+  const b=$('#mapfilter');if(!b)return;
+  if(state.mapCountry){
+    const name=(COUNTRY[state.mapCountry]||[state.mapCountry])[0];
+    b.innerHTML=`<span>Showing opportunities open to applicants in <b>${esc(name)}</b></span><button aria-label="Clear country filter">✕</button>`;
+    b.querySelector('button').addEventListener('click',clearMapCountry);
+    b.style.display='flex';
+  } else b.style.display='none';
 }
 function renderTable(grid,total){
   const t=el('table','gtable');
