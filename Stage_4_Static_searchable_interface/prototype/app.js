@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   ['f-status','f-region','f-sector','f-org'].forEach(id=>$('#'+id).addEventListener('change',()=>{state.shown=BATCH;applyAll();}));
   $('#sort').addEventListener('change',e=>{state.sort=e.target.value;state.shown=BATCH;applyAll();});
-  let t=null;$('#search').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{state.shown=BATCH;applyAll();},200);});
+  let t=null;$('#search').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{state.shown=BATCH;applyAll();scrollToResults();},200);});
   $('#pToggle').addEventListener('click',()=>{const p=$('#panel');const o=p.classList.toggle('open');$('#pToggle').classList.toggle('on',o);});
   $('#pSave').addEventListener('click',()=>{saveProfile();$('#panel').classList.remove('open');$('#pToggle').classList.remove('on');state.sort='recommended';$('#sort').value='recommended';state.shown=BATCH;applyAll();});
   $('#pClear').addEventListener('click',()=>{state.profile=null;try{localStorage.removeItem(LS_PROFILE)}catch(e){}syncChips();updatePersonaliseBtn();state.shown=BATCH;applyAll();});
@@ -65,7 +65,37 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
   $('#overlay').addEventListener('click',e=>{if(e.target===$('#overlay'))closeModal();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+  // Claude-like landing: time-based greeting, sticky toolbar, reveal-on-scroll
+  setGreeting();
+  initStickyToolbar();
+  const sh=$('#scrollhint');if(sh)sh.addEventListener('click',scrollToResults);
 });
+
+function setGreeting(){
+  const h=new Date().getHours();
+  const g=h<12?'Good morning':h<18?'Good afternoon':'Good evening';
+  const e=$('#greeting');if(e)e.textContent=g;
+}
+function initStickyToolbar(){
+  const sent=$('#tbSentinel'),tb=$('#toolbar'),sh=$('#scrollhint'),grid=$('#grid');
+  if(!sent||!tb||!('IntersectionObserver'in window))return;
+  let revealed=false;
+  // Sentinel leaves the top → toolbar is pinned (user has scrolled into results):
+  // pin the glass bar, hide the hero hint, and play a one-time reveal on the grid.
+  new IntersectionObserver(([e])=>{
+    const stuck=!e.isIntersecting;
+    tb.classList.toggle('stuck',stuck);
+    if(sh)sh.classList.toggle('hide',stuck);
+    if(stuck&&!revealed&&grid){grid.classList.add('reveal');revealed=true;}
+  },{threshold:0}).observe(sent);
+}
+function scrollToResults(){
+  const tb=$('#toolbar');if(!tb)return;
+  const y=window.scrollY+tb.getBoundingClientRect().top;
+  // +10px past the toolbar's top so the sticky state engages cleanly (glass bar on).
+  if(window.scrollY<y-8)window.scrollTo({top:y+10,behavior:'smooth'});
+}
 
 function init(grants){
   state.all=grants; state.profile=loadProfile(); state.affinity=loadAffinity();
@@ -128,8 +158,15 @@ function applyAll(){
     if(state.mapCountry){const cc=[...(g.applicant_base_countries||[]),...(g.geographic_focus_countries||[])];if(!cc.includes(state.mapCountry))return false;}
     return true;});
   if(q.length>0){
-    const fuse=new Fuse(r,{keys:[{name:'grant_title',weight:.4},{name:'funder_name',weight:.3},{name:'description',weight:.15},{name:'thematic_sectors',weight:.15}],threshold:.35,ignoreLocation:true,minMatchCharLength:2});
-    r=fuse.search(q).map(x=>x.item);r.forEach(g=>g._forYou=false);
+    if(typeof Fuse!=='undefined'){
+      const fuse=new Fuse(r,{keys:[{name:'grant_title',weight:.4},{name:'funder_name',weight:.3},{name:'description',weight:.15},{name:'thematic_sectors',weight:.15}],threshold:.35,ignoreLocation:true,minMatchCharLength:2});
+      r=fuse.search(q).map(x=>x.item);
+    } else {
+      // Fallback if the fuzzy-search lib failed to load: simple substring match.
+      const ql=q.toLowerCase();
+      r=r.filter(g=>((g.grant_title||'')+' '+(g.funder_name||'')+' '+(g.thematic_sectors||[]).join(' ')).toLowerCase().includes(ql));
+    }
+    r.forEach(g=>g._forYou=false);
   } else r=order(r);
   // Individual-first default: when not scoped to a specific organisation type
   // (and not on an explicit deadline/funding sort), float opportunities open to
