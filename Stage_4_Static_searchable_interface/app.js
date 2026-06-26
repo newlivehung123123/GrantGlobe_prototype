@@ -1,890 +1,319 @@
 'use strict';
+/* GrantGlobe concept — functional app on live data (dark-space + glass design) */
 
-/* ============================================================
-   GrantGlobe — app.js
-   Phase B Prompt 1: data loading · card rendering · detail modal
-   Phase B Prompt 2 will replace applySearchAndFilters() in-place.
-   ============================================================ */
+const LS_PROFILE='gg_profile_v1', LS_AFFINITY='gg_affinity_v1';
+const state={all:[],filtered:[],sort:'recommended',profile:null,affinity:null,shown:0,view:'grid',mapCountry:null,_map:null,_markers:null};
+const BATCH=60;
 
-// ── Bootstrap ──────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+/* ISO 3166-1 alpha-2 → [name, lat, lng] for the world-map view (covers every
+   country in the data plus common extras so new data still pins). */
+const COUNTRY={
+  US:['United States',39.8,-98.6],GB:['United Kingdom',54.0,-2.4],NL:['Netherlands',52.1,5.3],
+  AU:['Australia',-25.7,133.8],NO:['Norway',61.0,9.0],FR:['France',46.2,2.2],DE:['Germany',51.2,10.4],
+  FI:['Finland',63.0,26.0],DK:['Denmark',56.0,9.5],IS:['Iceland',64.9,-18.6],SE:['Sweden',62.0,15.0],
+  IE:['Ireland',53.2,-8.0],IN:['India',22.0,79.0],HK:['Hong Kong',22.3,114.2],ZA:['South Africa',-29.0,24.0],
+  NG:['Nigeria',9.1,8.7],KE:['Kenya',0.2,37.9],GH:['Ghana',7.9,-1.0],ET:['Ethiopia',9.1,40.5],
+  TZ:['Tanzania',-6.4,34.9],UG:['Uganda',1.4,32.3],SN:['Senegal',14.5,-14.5],RW:['Rwanda',-1.9,29.9],
+  ZM:['Zambia',-13.1,27.8],CA:['Canada',58.0,-101.0],CH:['Switzerland',46.8,8.2],JP:['Japan',36.5,138.0],
+  AF:['Afghanistan',33.9,67.7],BD:['Bangladesh',23.7,90.4],PK:['Pakistan',30.4,69.3],BE:['Belgium',50.6,4.6],
+  CN:['China',35.0,104.0],CZ:['Czechia',49.8,15.5],EE:['Estonia',58.7,25.6],HR:['Croatia',45.1,15.6],
+  HU:['Hungary',47.2,19.5],IT:['Italy',42.5,12.6],KR:['South Korea',36.4,127.9],KH:['Cambodia',12.6,104.9],
+  LT:['Lithuania',55.3,23.9],LU:['Luxembourg',49.8,6.1],MM:['Myanmar',21.0,96.0],MZ:['Mozambique',-18.0,35.0],
+  NP:['Nepal',28.4,84.1],PH:['Philippines',12.9,121.8],PL:['Poland',52.0,19.4],PT:['Portugal',39.6,-8.0],
+  SA:['Saudi Arabia',24.0,45.1],TR:['Türkiye',39.0,35.2],TW:['Taiwan',23.8,121.0],AE:['United Arab Emirates',24.0,54.0],
+  NZ:['New Zealand',-41.5,172.8],ES:['Spain',40.2,-3.7],AT:['Austria',47.6,14.1],BR:['Brazil',-10.0,-52.0],
+  MX:['Mexico',23.6,-102.5],SG:['Singapore',1.35,103.8],IL:['Israel',31.4,35.0],GR:['Greece',39.0,22.0],
+  RO:['Romania',45.9,25.0],SK:['Slovakia',48.7,19.5],SI:['Slovenia',46.1,14.8],LV:['Latvia',56.9,24.6],
+  UA:['Ukraine',49.0,32.0],QA:['Qatar',25.3,51.2],MA:['Morocco',31.8,-7.1],EG:['Egypt',26.8,30.8]};
 
-  // ── Fetch grant data ─────────────────────────────────────────────────
-  fetch('data/grants.json')
-    .then(res => { if (!res.ok) throw new Error(res.status); return res.json(); })
-    .then(payload => init(payload.grants, payload.metadata || {}))
-    .catch(err => showError(err));
+const STAGE_OPTIONS=[
+  {v:'student',label:'Student / PhD'},{v:'early',label:'Postdoc / Early-career'},
+  {v:'established',label:'Established researcher'},{v:'nonprofit',label:'Non-profit / NGO'},
+  {v:'industry',label:'Industry / Startup'}];
+const STAGE_KW={
+  student:['phd','doctoral','studentship','scholarship','student','master','graduate','fellowship','early career','early-career'],
+  early:['postdoc','post-doctoral','postdoctoral','early career','early-career','fellowship','junior','new investigator','first grant'],
+  established:['research grant','project grant','programme','program grant','investigator','senior','consolidator','advanced','professor']};
+const FX={USD:1,EUR:1.08,GBP:1.27,CHF:1.1,CAD:.73,AUD:.66,NZD:.61,JPY:.0067,CNY:.14,HKD:.128,SGD:.74,KRW:.00073,INR:.012,SEK:.095,NOK:.094,DKK:.145,PLN:.25,CZK:.043,ZAR:.054,BRL:.18,MXN:.058,ILS:.27,AED:.27,SAR:.27,TWD:.031};
 
-  // ── Card interaction (event delegation on the grid) ──────────────────
-  const grid = document.getElementById('grant-grid');
+const $=s=>document.querySelector(s);
+const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
 
-  grid.addEventListener('click', e => {
-    const card = e.target.closest('.grant-card');
-    if (!card) return;
-    const grant = state.allGrants.find(g => g.id === card.dataset.id);
-    if (grant) openModal(grant);
+// Load grants.json from whichever location this page is served from: at the
+// site root the data is at data/grants.json; under /prototype/ it's one level
+// up. Trying both keeps a single app.js working in either place.
+function loadGrants(){
+  return ['data/grants.json','../data/grants.json'].reduce(
+    (chain,url)=>chain.catch(()=>fetch(url).then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})),
+    Promise.reject(new Error('init')));
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  loadGrants().then(p=>init(p.grants||[])).catch(err=>{$('#count').textContent='Could not load data ('+err+')';});
+
+  ['f-status','f-region','f-sector','f-org'].forEach(id=>$('#'+id).addEventListener('change',()=>{state.shown=BATCH;applyAll();}));
+  $('#sort').addEventListener('change',e=>{state.sort=e.target.value;state.shown=BATCH;applyAll();});
+  let t=null;$('#search').addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{state.shown=BATCH;applyAll();},200);});
+  $('#pToggle').addEventListener('click',()=>{const p=$('#panel');const o=p.classList.toggle('open');$('#pToggle').classList.toggle('on',o);});
+  $('#pSave').addEventListener('click',()=>{saveProfile();$('#panel').classList.remove('open');$('#pToggle').classList.remove('on');state.sort='recommended';$('#sort').value='recommended';state.shown=BATCH;applyAll();});
+  $('#pClear').addEventListener('click',()=>{state.profile=null;try{localStorage.removeItem(LS_PROFILE)}catch(e){}syncChips();updatePersonaliseBtn();state.shown=BATCH;applyAll();});
+  $('#showmore').addEventListener('click',()=>{state.shown+=BATCH;render();});
+  // view toggle (grid / list / table / grouped)
+  state.view=(localStorage.getItem('gg_view')||'grid');
+  syncViewButtons();
+  document.querySelectorAll('#viewtoggle button').forEach(b=>{
+    b.addEventListener('click',()=>{state.view=b.dataset.view;try{localStorage.setItem('gg_view',state.view)}catch(e){}syncViewButtons();state.shown=BATCH;render();});
   });
-
-  grid.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    const card = e.target.closest('.grant-card');
-    if (!card) return;
-    e.preventDefault();
-    const grant = state.allGrants.find(g => g.id === card.dataset.id);
-    if (grant) openModal(grant);
-  });
-
-  // ── Modal close handlers (attached once) ─────────────────────────────
-  document.getElementById('modal-overlay').addEventListener('click', e => {
-    if (e.target === document.getElementById('modal-overlay')) closeModal();
-  });
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
-  });
-
-  // ── Filter + search change handlers ──────────────────────────────────
-  ['filter-status', 'filter-region', 'filter-sector', 'filter-org-type'].forEach(id => {
-    document.getElementById(id).addEventListener('change', applySearchAndFilters);
-  });
-
-  let _searchTimer = null;
-  document.getElementById('search-input').addEventListener('input', () => {
-    clearTimeout(_searchTimer);
-    _searchTimer = setTimeout(applySearchAndFilters, 200);
-  });
-
-  document.getElementById('reset-filters').addEventListener('click', () => {
-    ['filter-status', 'filter-region', 'filter-sector', 'filter-org-type'].forEach(id => {
-      document.getElementById(id).value = '';
-    });
-    document.getElementById('search-input').value = '';
-    applySearchAndFilters();
-  });
-
-  // ── Personalisation controls ─────────────────────────────────────────
-  document.getElementById('sort-mode').addEventListener('change', e => {
-    state.sortMode = e.target.value;
-    applySearchAndFilters();
-  });
-
-  document.getElementById('personalize-toggle').addEventListener('click', () => {
-    const panel  = document.getElementById('personalize-panel');
-    const toggle = document.getElementById('personalize-toggle');
-    const open   = panel.classList.toggle('hidden') === false;
-    toggle.setAttribute('aria-expanded', String(open));
-  });
-
-  document.getElementById('pz-save').addEventListener('click', () => {
-    saveProfileFromPanel();
-    const panel = document.getElementById('personalize-panel');
-    panel.classList.add('hidden');
-    document.getElementById('personalize-toggle').setAttribute('aria-expanded', 'false');
-    // Saving implies the user wants their personalised feed.
-    state.sortMode = 'recommended';
-    document.getElementById('sort-mode').value = 'recommended';
-    applySearchAndFilters();
-  });
-
-  document.getElementById('pz-clear').addEventListener('click', () => {
-    state.profile = null;
-    try { localStorage.removeItem(LS_PROFILE); } catch (e) { /* ignore */ }
-    syncPanelToProfile();
-    updatePersonalizeLabel();
-    applySearchAndFilters();
-  });
+  $('#overlay').addEventListener('click',e=>{if(e.target===$('#overlay'))closeModal();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 });
 
-// ── Module-level state ──────────────────────────────────────────────────────
-const state = {
-  allGrants: [],          // full dataset, set once in init()
-  filtered:  [],          // current filtered + searched subset
-  sortMode:  'recommended', // recommended | toprated | deadline | funding
-  profile:   null,        // { stage, fields:[], region } from localStorage
-  affinity:  null,        // { sectors:{}, funders:{} } learned from clicks
-};
-
-// localStorage keys
-const LS_PROFILE  = 'gg_profile_v1';
-const LS_AFFINITY = 'gg_affinity_v1';
-
-// ── Error display ───────────────────────────────────────────────────────────
-function showError(err) {
-  console.error('Failed to load grants data:', err);
-  const grid = document.getElementById('grant-grid');
-  grid.innerHTML = '';
-  const div = document.createElement('div');
-  div.className = 'grant-grid__empty';
-  div.innerHTML =
-    '<strong>Could not load grant data.</strong> ' +
-    'Open this page via a local server (e.g. <code>python -m http.server</code>) ' +
-    'rather than directly from the filesystem, or check that data/grants.json exists.';
-  grid.appendChild(div);
+function init(grants){
+  state.all=grants; state.profile=loadProfile(); state.affinity=loadAffinity();
+  buildFilters(grants); buildPanel(grants); syncChips(); updatePersonaliseBtn();
+  state.shown=BATCH; applyAll();
 }
 
-// ── init ────────────────────────────────────────────────────────────────────
-function init(grants, metadata) {
-  state.allGrants = grants;
-  state.profile   = loadProfile();
-  state.affinity  = loadAffinity();
-  populateDynamicFilters(grants);
-  buildPersonalizePanel(grants);
-  syncPanelToProfile();
-  updatePersonalizeLabel();
-  // Initial render uses the recommended ordering (global prior, personalised
-  // if a saved profile/affinity exists).
-  state.filtered = orderGrants(grants);
-  renderCards(state.filtered);
-  updateResultCount(state.filtered.length, grants.length);
-  populateMetadata(metadata, grants.length);
+/* ---------- filters & panel ---------- */
+function uniq(grants,getter){const s=new Set();grants.forEach(g=>(getter(g)||[]).forEach(v=>v&&s.add(v)));return [...s].sort();}
+function buildFilters(grants){
+  fill('#f-status',[...new Set(grants.map(g=>g.current_status).filter(Boolean))].sort());
+  fill('#f-region',uniq(grants,g=>[...(g.applicant_base_regions||[]),...(g.geographic_focus_regions||[])]));
+  fill('#f-sector',uniq(grants,g=>g.thematic_sectors));
+  const indOpt=el('option');indOpt.value='__individuals__';indOpt.textContent='Individuals';$('#f-org').appendChild(indOpt);
+  fill('#f-org',uniq(grants,g=>g.organisation_types));
 }
+function isForIndividuals(g){if((g.individual_eligibility||[]).length)return true;return (g.organisation_types||[]).some(o=>/individual/i.test(o));}
+function indTier(g){
+  // tier 0 = a GENUINE individual signal (named individual eligibility, e.g.
+  // "Early Career Researcher" — fellowships/individual schemes). tier 1 =
+  // possibly-individual (eligibility unspecified, OR funder lists "Individuals"
+  // among many eligible org types — a broad catch-all on grants.gov programmes).
+  // tier 2 = explicitly organisation-only.
+  if((g.individual_eligibility||[]).length)return 0;
+  const ot=g.organisation_types||[];
+  if(!ot.length||ot.some(o=>/individual/i.test(o)))return 1;
+  return 2;
+}
+function fill(sel,vals){const s=$(sel);vals.forEach(v=>{const o=el('option');o.value=v;o.textContent=v;s.appendChild(o);});}
+function buildPanel(grants){
+  chips('#c-stage',STAGE_OPTIONS.map(o=>({v:o.v,label:o.label})),'single');
+  const sc={};grants.forEach(g=>(g.thematic_sectors||[]).forEach(s=>s&&(sc[s]=(sc[s]||0)+1)));
+  const top=Object.entries(sc).sort((a,b)=>b[1]-a[1]).slice(0,14).map(([s])=>({v:s,label:s}));
+  chips('#c-fields',top,'multi');
+  const regs=uniq(grants,g=>[...(g.applicant_base_regions||[]),...(g.geographic_focus_regions||[])]);
+  chips('#c-region',[{v:'any',label:'Anywhere'},...regs.map(r=>({v:r,label:r}))],'single');
+}
+function chips(sel,opts,mode){const c=$(sel);c.innerHTML='';c.dataset.mode=mode;
+  opts.forEach(o=>{const b=el('button','chip');b.dataset.v=o.v;b.textContent=o.label;
+    b.addEventListener('click',()=>{if(mode==='single'){const was=b.classList.contains('sel');c.querySelectorAll('.chip').forEach(x=>x.classList.remove('sel'));if(!was)b.classList.add('sel');}else b.classList.toggle('sel');});
+    c.appendChild(b);});}
+function selVals(sel){return [...$(sel).querySelectorAll('.chip.sel')].map(b=>b.dataset.v);}
+function setChips(sel,vals){$(sel).querySelectorAll('.chip').forEach(b=>b.classList.toggle('sel',vals.includes(b.dataset.v)));}
+function syncChips(){const p=state.profile;setChips('#c-stage',p&&p.stage?[p.stage]:[]);setChips('#c-fields',p&&p.fields?p.fields:[]);setChips('#c-region',p&&p.region?[p.region]:[]);}
+function saveProfile(){state.profile={stage:selVals('#c-stage')[0]||'',fields:selVals('#c-fields'),region:selVals('#c-region')[0]||''};try{localStorage.setItem(LS_PROFILE,JSON.stringify(state.profile))}catch(e){}updatePersonaliseBtn();}
+function loadProfile(){try{const r=localStorage.getItem(LS_PROFILE);if(r)return JSON.parse(r);}catch(e){}return null;}
+function loadAffinity(){try{const r=localStorage.getItem(LS_AFFINITY);if(r)return JSON.parse(r);}catch(e){}return {sectors:{},funders:{}};}
+function hasProfile(p){return !!(p&&(p.stage||(p.fields&&p.fields.length)||(p.region&&p.region!=='any')));}
+function hasAffinity(a){return !!(a&&a.sectors&&Object.keys(a.sectors).length);}
+function updatePersonaliseBtn(){$('#pToggle').classList.toggle('on',hasProfile(state.profile)&&!$('#panel').classList.contains('open'));}
 
-// ── populateMetadata ────────────────────────────────────────────────────────
-function populateMetadata(metadata, grantCount) {
-  // Format the exported_at ISO string as a human-readable date.
-  // exported_at is already UTC (ends in +00:00 or Z), so parse it directly.
-  let dateStr = '';
-  if (metadata.exported_at) {
-    const d = new Date(metadata.exported_at);
-    dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+/* ---------- filter + search + order ---------- */
+function applyAll(){
+  const q=$('#search').value.trim(), st=$('#f-status').value, rg=$('#f-region').value, sc=$('#f-sector').value, ot=$('#f-org').value;
+  let r=state.all.filter(g=>{
+    if(st&&g.current_status!==st)return false;
+    if(rg){const a=[...(g.applicant_base_regions||[]),...(g.geographic_focus_regions||[])];if(!a.includes(rg))return false;}
+    if(sc&&!(g.thematic_sectors||[]).includes(sc))return false;
+    if(ot){if(ot==='__individuals__'){if(!isForIndividuals(g))return false;}else if(!(g.organisation_types||[]).includes(ot))return false;}
+    if(state.mapCountry){const cc=[...(g.applicant_base_countries||[]),...(g.geographic_focus_countries||[])];if(!cc.includes(state.mapCountry))return false;}
+    return true;});
+  if(q.length>0){
+    const fuse=new Fuse(r,{keys:[{name:'grant_title',weight:.4},{name:'funder_name',weight:.3},{name:'description',weight:.15},{name:'thematic_sectors',weight:.15}],threshold:.35,ignoreLocation:true,minMatchCharLength:2});
+    r=fuse.search(q).map(x=>x.item);r.forEach(g=>g._forYou=false);
+  } else r=order(r);
+  // Individual-first default: when not scoped to a specific organisation type
+  // (and not on an explicit deadline/funding sort), float opportunities open to
+  // individuals to the top — clearly-individual first, then unspecified, then
+  // organisation-only last. Stable, so ranking/relevance is preserved within tier.
+  if(!ot && state.sort!=='deadline' && state.sort!=='funding') r=r.slice().sort((a,b)=>indTier(a)-indTier(b));
+  state.filtered=r; render();
+}
+function globalPrior(g){return typeof g._rank_score==='number'?g._rank_score:.6;}
+function fundingUsd(g){const a=g.funding_amount_max||g.funding_amount_min;return a?Number(a)*(FX[(g.currency||'USD').toUpperCase()]||1):-1;}
+function deadlineKey(g){if(!g.application_deadline)return 8.64e15;const t=Date.parse(g.application_deadline+'T00:00:00');return isNaN(t)?8.64e15:t;}
+function stageMatch(g,stage){const ot=(g.organisation_types||[]).join(' ').toLowerCase();
+  if(stage==='nonprofit')return /non.?profit|ngo|charit|civil society|foundation|community/.test(ot)?1:.45;
+  if(stage==='industry'){const h=ot+' '+(g.grant_types||[]).join(' ').toLowerCase();return /sme|business|compan|startup|start-up|industr|for.?profit|enterprise|innovation|commerc/.test(h)?1:.4;}
+  const hay=[...(g.grant_types||[]),...(g.individual_eligibility||[]),...(g.organisation_types||[]),g.grant_title||''].join(' ').toLowerCase();
+  const hits=(STAGE_KW[stage]||[]).filter(k=>hay.includes(k)).length;return hits>=2?1:hits===1?.75:.45;}
+function affinityBoost(g,a){if(!hasAffinity(a))return .4;const sw=a.sectors||{},fw=a.funders||{};const ss=Object.values(sw).reduce((x,y)=>x+y,0)||1;let s=0;(g.thematic_sectors||[]).forEach(x=>{if(sw[x])s+=sw[x]/ss;});s=Math.min(1,s);const fs=Object.values(fw).reduce((x,y)=>x+y,0)||1;const f=g.funder_name&&fw[g.funder_name]?Math.min(1,fw[g.funder_name]/fs):0;return Math.max(.3,.7*s+.3*f);}
+function personalMatch(g,p,a){const pp=hasProfile(p),ap=hasAffinity(a);if(!pp&&!ap)return null;let pm=null;
+  if(pp){let fs=.5;if(p.fields&&p.fields.length){const hit=(g.thematic_sectors||[]).filter(s=>p.fields.includes(s)).length;fs=hit>0?Math.min(1,.65+.18*hit):.2;}
+    let rs=.5;if(p.region&&p.region!=='any'){const regs=[...(g.applicant_base_regions||[]),...(g.geographic_focus_regions||[])];rs=regs.includes(p.region)?1:(!regs.length||regs.includes('Global')?.6:.25);}
+    const ss=p.stage?stageMatch(g,p.stage):.5;pm=.42*fs+.3*ss+.28*rs;}
+  const ab=affinityBoost(g,a);if(pp&&ap)return .8*pm+.2*ab;if(pp)return pm;return ab;}
+function order(list){const arr=list.slice();
+  if(state.sort==='deadline'){arr.forEach(g=>g._forYou=false);return arr.sort((a,b)=>deadlineKey(a)-deadlineKey(b));}
+  if(state.sort==='funding'){arr.forEach(g=>g._forYou=false);return arr.sort((a,b)=>fundingUsd(b)-fundingUsd(a));}
+  if(state.sort==='toprated'){arr.forEach(g=>g._forYou=false);return arr.sort((a,b)=>globalPrior(b)-globalPrior(a));}
+  const personalised=hasProfile(state.profile)||hasAffinity(state.affinity);
+  arr.forEach(g=>{const pm=personalMatch(g,state.profile,state.affinity);if(pm==null){g._score=globalPrior(g);g._forYou=false;}else{g._score=.45*globalPrior(g)+.55*pm;g._forYou=personalised&&pm>=.78;}});
+  return arr.sort((a,b)=>b._score-a._score);}
+
+/* ---------- format helpers ---------- */
+function fmtDate(iso){if(!iso)return null;const d=new Date(String(iso).slice(0,10)+'T00:00:00');return isNaN(d)?null:d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});}
+function deadlineText(g){if(g.application_deadline_raw&&/rolling/i.test(g.application_deadline_raw))return 'Rolling';if(g.application_deadline){const f=fmtDate(g.application_deadline);return f?'Closes '+f:'Deadline TBC';}if(g.current_status==='Rolling')return 'Rolling';return 'Deadline TBC';}
+function sym(c){return c==='GBP'?'£':c==='EUR'?'€':c==='USD'?'$':(c?c+' ':'');}
+function abbr(n){n=Number(n);if(n>=1e9)return (n/1e9).toFixed(n>=1e10?0:1).replace(/\.0$/,'')+'B';if(n>=1e6)return (n/1e6).toFixed(n>=1e7?0:1).replace(/\.0$/,'')+'M';if(n>=1e3)return Math.round(n/1e3)+'K';return Math.round(n).toLocaleString();}
+function amountShort(g){const mx=g.funding_amount_max||g.funding_amount_min;return mx?sym(g.currency)+abbr(mx):'—';}
+function amountFull(g){const s=sym(g.currency),lo=g.funding_amount_min,hi=g.funding_amount_max;if(lo&&hi&&lo!==hi)return s+Number(lo).toLocaleString('en-GB')+' – '+s+Number(hi).toLocaleString('en-GB');if(hi)return 'Up to '+s+Number(hi).toLocaleString('en-GB');if(lo)return 'From '+s+Number(lo).toLocaleString('en-GB');return 'Not specified by funder';}
+function esc(v){return v==null?'':String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ---------- render ---------- */
+function syncViewButtons(){document.querySelectorAll('#viewtoggle button').forEach(x=>x.classList.toggle('on',x.dataset.view===state.view));}
+function viewMode(){let v=state.view;if(window.matchMedia('(max-width:768px)').matches&&(v==='table'||v==='grouped'||v==='map'))v='grid';return v;}
+function render(){
+  const grid=$('#grid');const total=state.filtered.length;const v=viewMode();
+  $('#count').textContent=total?(total.toLocaleString()+' opportunit'+(total===1?'y':'ies')):'No grants match your search';
+  syncMapFilterBanner();
+  const wrap=$('#gmapwrap');
+  if(v==='map'){
+    grid.style.display='none';grid.innerHTML='';$('#showmore').style.display='none';
+    if(wrap)wrap.style.display='block';
+    renderMap();return;
   }
-
-  // Build the meta string: "847 grants · Last updated 28 May 2026"
-  const count = metadata.total_grants ?? grantCount;
-  const parts = [];
-  parts.push(`${count} grant${count !== 1 ? 's' : ''}`);
-  if (dateStr) parts.push(`Last updated ${dateStr}`);
-  const metaText = parts.join(' \u00b7 ');
-
-  // Inject into the page subtitle in the header.
-  // The .site-header__subtitle element already exists in the HTML.
-  const subtitle = document.querySelector('.site-header__subtitle');
-  if (subtitle) subtitle.textContent = metaText;
+  grid.style.display='';if(wrap)wrap.style.display='none';
+  grid.className='grid'+(v==='list'?' list':v==='table'?' table':v==='grouped'?' grouped':'');
+  grid.innerHTML='';$('#showmore').style.display='none';
+  if(!total){const e=el('div','empty');e.textContent='No grants match — try clearing a filter.';grid.appendChild(e);return;}
+  if(v==='table'){renderTable(grid,total);return;}
+  if(v==='grouped'){renderGrouped(grid);return;}
+  const frag=document.createDocumentFragment();
+  state.filtered.slice(0,state.shown).forEach(g=>frag.appendChild(card(g)));
+  grid.appendChild(frag);
+  if(state.shown<total){const sm=$('#showmore');sm.style.display='block';sm.textContent='Show more · '+(total-state.shown).toLocaleString()+' remaining';}
 }
 
-// ── populateDynamicFilters ──────────────────────────────────────────────────
-function populateDynamicFilters(grants) {
-  // Helper: append a sentinel "Not specified" option if any records have no value
-  function maybeAddUnspecified(el, hasNone) {
-    if (!hasNone) return;
-    const sep = document.createElement('option');
-    sep.disabled = true;
-    sep.textContent = '──────────';
-    el.appendChild(sep);
-    const opt = document.createElement('option');
-    opt.value = '__unspecified__';
-    opt.textContent = 'Not specified';
-    el.appendChild(opt);
-  }
-
-  // Regions
-  const regions = new Set();
-  let hasNoRegion = false;
-  grants.forEach(g => {
-    const ab = g.applicant_base_regions   || [];
-    const gf = g.geographic_focus_regions || [];
-    ab.forEach(r => { if (r) regions.add(r); });
-    gf.forEach(r => { if (r) regions.add(r); });
-    if (!ab.length && !gf.length) hasNoRegion = true;
-  });
-  const regionEl = document.getElementById('filter-region');
-  [...regions].sort().forEach(r => {
-    const opt = document.createElement('option');
-    opt.value = r;
-    opt.textContent = r;
-    regionEl.appendChild(opt);
-  });
-  maybeAddUnspecified(regionEl, hasNoRegion);
-
-  // Sectors
-  const sectors = new Set();
-  let hasNoSector = false;
-  grants.forEach(g => {
-    const ts = g.thematic_sectors || [];
-    ts.forEach(s => { if (s) sectors.add(s); });
-    if (!ts.length) hasNoSector = true;
-  });
-  const sectorEl = document.getElementById('filter-sector');
-  [...sectors].sort().forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s;
-    opt.textContent = s;
-    sectorEl.appendChild(opt);
-  });
-  maybeAddUnspecified(sectorEl, hasNoSector);
-
-  // Organisation types
-  const orgTypes = new Set();
-  let hasNoOrgType = false;
-  grants.forEach(g => {
-    const ot = g.organisation_types || [];
-    ot.forEach(t => { if (t) orgTypes.add(t); });
-    if (!ot.length) hasNoOrgType = true;
-  });
-  const orgEl = document.getElementById('filter-org-type');
-  [...orgTypes].sort().forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t;
-    opt.textContent = t;
-    orgEl.appendChild(opt);
-  });
-  maybeAddUnspecified(orgEl, hasNoOrgType);
-
-  // Status — built dynamically from whatever current_status values actually
-  // appear in the data, same as Region/Sector/Org Type above. This avoids
-  // silently dropping records into "Not specified" whenever a connector
-  // introduces a new status string (e.g. "Forthcoming", "Invitation Only")
-  // that a hardcoded list hasn't been updated to recognise.
-  const statuses = new Set();
-  let hasNoStatus = false;
-  grants.forEach(g => {
-    if (g.current_status) statuses.add(g.current_status);
-    else hasNoStatus = true;
-  });
-  const statusEl = document.getElementById('filter-status');
-  [...statuses].sort().forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s;
-    opt.textContent = s;
-    statusEl.appendChild(opt);
-  });
-  maybeAddUnspecified(statusEl, hasNoStatus);
-}
-
-// ── Formatting helpers ──────────────────────────────────────────────────────
-
-/**
- * Format an ISO-8601 date string as a human-readable date.
- * Appends T00:00:00 to force local-midnight parsing and avoid UTC date shift.
- */
-function formatDate(isoStr) {
-  if (!isoStr) return null;
-  const d = new Date(isoStr + 'T00:00:00');
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-/**
- * Build a human-readable funding range string.
- * Returns null when no amount data is present.
- */
-function formatAmount(grant) {
-  const fmt = (n, currency) => {
-    if (n == null) return null;
-    const sym = currency === 'GBP' ? '£'
-              : currency === 'EUR' ? '€'
-              : currency === 'USD' ? '$'
-              : (currency ? currency + '\u00a0' : '');
-    return sym + Number(n).toLocaleString('en-GB', { maximumFractionDigits: 0 });
-  };
-  const min = fmt(grant.funding_amount_min, grant.currency);
-  const max = fmt(grant.funding_amount_max, grant.currency);
-  if (min && max && min !== max) return `${min}\u2013${max}`;  // en-dash
-  if (max) return `Up to ${max}`;
-  if (min) return `From ${min}`;
-  return null;
-}
-
-/**
- * Escape a plain-text value for safe insertion into HTML content or
- * attribute values.  Keeps the DOM-construction helpers XSS-safe.
- */
-function esc(value) {
-  if (value == null) return '';
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-// ── renderCards ─────────────────────────────────────────────────────────────
-function renderCards(grants) {
-  const grid = document.getElementById('grant-grid');
-  grid.innerHTML = '';
-
-  if (!grants.length) {
-    const empty = document.createElement('div');
-    empty.className = 'grant-grid__empty';
-    empty.innerHTML =
-      '<strong>No grants match your search.</strong> ' +
-      'Try adjusting your filters or search terms.';
-    grid.appendChild(empty);
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-
-  grants.forEach(grant => {
-    const cls         = (grant.current_status || 'unknown').toLowerCase().replace(/\s+/g, '-');
-    const statusLabel = grant.current_status || 'Unknown';
-
-    // Deadline text — some funders accept applications on a rolling basis
-    // with no real deadline; their connector sets application_deadline_raw
-    // to say so even though application_deadline itself holds a far-future
-    // sentinel date (needed internally to keep the record's status fresh).
-    // Prefer that raw text over the literal date whenever it says "rolling".
-    let deadlineText;
-    if (grant.application_deadline_raw && /rolling/i.test(grant.application_deadline_raw)) {
-      deadlineText = 'Rolling deadline';
-    } else if (grant.application_deadline) {
-      deadlineText = 'Deadline: ' + formatDate(grant.application_deadline);
-    } else if (grant.current_status === 'Rolling') {
-      deadlineText = 'Rolling deadline';
-    } else {
-      deadlineText = 'Deadline: TBC';
-    }
-
-    // Funding amount — append currency code to match modal display ("£50,000 GBP")
-    const amount    = formatAmount(grant);
-    const amountWithCurrency = amount && grant.currency
-      ? `${amount} ${grant.currency}`
-      : amount;
-    const amountHtml = amountWithCurrency
-      ? `<span class="grant-card__amount">${esc(amountWithCurrency)}</span>`
-      : '';
-
-    // Thematic sectors — at most 3, joined by · (middle dot)
-    const sectorsText = (grant.thematic_sectors || []).slice(0, 3).join(' \u00b7 ');
-
-    // Build card using a temporary container so we can extract the element.
-    // We never assign directly to grid.innerHTML to preserve event delegation.
-    const closedClass = grant.current_status === 'Closed' ? ' grant-card--closed' : '';
-    const forYouHtml = grant._forYou
-      ? `<span class="grant-card__foryou" aria-label="Recommended for you">✦ For you</span>`
-      : '';
-    const tmp = document.createElement('div');
-    tmp.innerHTML =
-      `<div class="grant-card${closedClass}" tabindex="0" data-id="${esc(grant.id)}">` +
-        forYouHtml +
-        `<div class="grant-card__header">` +
-          `<span class="grant-card__title">${esc(grant.grant_title)}</span>` +
-          `<span class="badge badge--${esc(cls)}">${esc(statusLabel)}</span>` +
-        `</div>` +
-        `<div class="grant-card__funder">${esc(grant.funder_name)}</div>` +
-        `<div class="grant-card__meta">` +
-          `<span class="grant-card__deadline">${esc(deadlineText)}</span>` +
-          amountHtml +
-        `</div>` +
-        `<div class="grant-card__sectors">${esc(sectorsText)}</div>` +
-      `</div>`;
-
-    fragment.appendChild(tmp.firstElementChild);
-  });
-
-  grid.appendChild(fragment);
-}
-
-// ── updateResultCount ───────────────────────────────────────────────────────
-function updateResultCount(shown, total) {
-  const el = document.getElementById('result-count');
-  if (shown === total) {
-    el.textContent = `Showing all ${total} grant${total !== 1 ? 's' : ''}`;
-  } else {
-    el.textContent = `Showing ${shown} of ${total} grant${total !== 1 ? 's' : ''}`;
-  }
-}
-
-// ── openModal ───────────────────────────────────────────────────────────────
-function openModal(grant) {
-  // Behavioural signal: opening a grant nudges future recommendations toward
-  // its sectors and funder (stored client-side, like a feed that learns).
-  recordAffinity(grant);
-
-  const cls         = (grant.current_status || 'unknown').toLowerCase();
-  const statusLabel = grant.current_status || 'Unknown';
-
-  // ── Deadline ────────────────────────────────────────────────────────
-  // Same rolling-basis check as the card view — see comment there.
-  const isRolling = grant.application_deadline_raw && /rolling/i.test(grant.application_deadline_raw);
-  const deadlineText = isRolling
-    ? 'Rolling (no fixed deadline)'
-    : grant.application_deadline
-      ? formatDate(grant.application_deadline)
-      : 'TBC';
-  const deadlineTypeNote =
-    grant.application_deadline_type === 'estimated'
-      ? ' <span style="color:var(--clr-text-muted);font-size:13px;">(estimated)</span>'
-      : '';
-
-  // ── EOI deadline ────────────────────────────────────────────────────
-  const eoiHtml = grant.eoi_deadline
-    ? `<p class="modal-section-label" style="margin-top:12px;">EOI Deadline</p>` +
-      `<p class="modal-section-value">${esc(formatDate(grant.eoi_deadline))}</p>`
-    : '';
-
-  // ── Funding section ─────────────────────────────────────────────────
-  const amount = formatAmount(grant);
-  const fundingSection = amount
-    ? `<div class="modal-section">` +
-        `<p class="modal-section-label">Funding</p>` +
-        `<p class="modal-section-value">${esc(amount)}` +
-          (grant.currency
-            ? ` <span style="color:var(--clr-text-muted);">(${esc(grant.currency)})</span>`
-            : '') +
-        `</p>` +
-      `</div>`
-    : '';
-
-  // ── Tag builder ─────────────────────────────────────────────────────
-  function makeTags(arr) {
-    if (!arr || !arr.length) return '<span class="tag">Not specified</span>';
-    return arr.map(t => `<span class="tag">${esc(t)}</span>`).join('');
-  }
-
-  // ── Geographic focus — merge regions + countries ─────────────────────
-  const geoItems = [
-    ...(grant.geographic_focus_regions  || []),
-    ...(grant.geographic_focus_countries || []),
-  ];
-
-  // ── Grant types section ─────────────────────────────────────────────
-  const grantTypesSection = (grant.grant_types || []).length
-    ? `<div class="modal-section">` +
-        `<p class="modal-section-label">Grant Types</p>` +
-        `<div class="modal-tags">${makeTags(grant.grant_types)}</div>` +
-      `</div>`
-    : '';
-
-  // ── Apply button — prefer application_portal_url over source_url ────
-  const applyUrl = grant.application_portal_url || grant.source_url;
-  const applyBtn = applyUrl
-    ? `<a class="modal-apply-btn" href="${esc(applyUrl)}" target="_blank" ` +
-        `rel="noopener noreferrer">Apply\u00a0/\u00a0View Grant\u00a0\u2197</a>`
-    : '';
-
-  // ── Compose modal HTML ──────────────────────────────────────────────
-  const html =
-    `<button id="modal-close" class="modal-close" aria-label="Close detail panel">\u2715</button>` +
-
-    `<div class="modal-header">` +
-      `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-right:32px">` +
-        `<h2 id="modal-title" class="modal-title">${esc(grant.grant_title)}</h2>` +
-        `<span class="badge badge--${esc(cls)}">${esc(statusLabel)}</span>` +
-      `</div>` +
-      `<p class="modal-funder">${esc(grant.funder_name)}</p>` +
-    `</div>` +
-
-    `<div class="modal-section">` +
-      `<p class="modal-section-label">Application Deadline</p>` +
-      `<p class="modal-section-value">${esc(deadlineText)}${deadlineTypeNote}</p>` +
-      eoiHtml +
-    `</div>` +
-
-    fundingSection +
-
-    `<div class="modal-section">` +
-      `<p class="modal-section-label">Description</p>` +
-      `<p class="modal-section-value">${esc(grant.description || 'No description available.')}</p>` +
-    `</div>` +
-
-    `<div class="modal-section">` +
-      `<p class="modal-section-label">Eligible Organisation Types</p>` +
-      `<div class="modal-tags">${makeTags(grant.organisation_types)}</div>` +
-    `</div>` +
-
-    `<div class="modal-section">` +
-      `<p class="modal-section-label">Geographic Focus</p>` +
-      `<div class="modal-tags">${makeTags(geoItems)}</div>` +
-    `</div>` +
-
-    `<div class="modal-section">` +
-      `<p class="modal-section-label">Thematic Sectors</p>` +
-      `<div class="modal-tags">${makeTags(grant.thematic_sectors)}</div>` +
-    `</div>` +
-
-    grantTypesSection +
-
-    applyBtn;
-
-  // Write into modal and re-attach close listener
-  // (innerHTML replaces the old #modal-close element, so we must re-bind)
-  const modalContent = document.getElementById('modal-content');
-  modalContent.innerHTML = html;
-  document.getElementById('modal-close').addEventListener('click', closeModal);
-
-  // Reveal the overlay
-  document.getElementById('modal-overlay').classList.remove('hidden');
-}
-
-// ── closeModal ──────────────────────────────────────────────────────────────
-function closeModal() {
-  document.getElementById('modal-overlay').classList.add('hidden');
-}
-
-// ── Search & filter engine ──────────────────────────────────────────────────
-function applySearchAndFilters() {
-  // Step 1 — read current UI state
-  const query   = document.getElementById('search-input').value.trim();
-  const status  = document.getElementById('filter-status').value;
-  const region  = document.getElementById('filter-region').value;
-  const sector  = document.getElementById('filter-sector').value;
-  const orgType = document.getElementById('filter-org-type').value;
-
-  // Step 2 — hard filters (exact-match; skipped when the select is at "All …")
-  // '__unspecified__' sentinel matches records with no value in that field.
-  const hardFiltered = state.allGrants.filter(g => {
-    // Status
-    if (status === '__unspecified__') {
-      if (g.current_status) return false;
-    } else if (status !== '') {
-      if (g.current_status !== status) return false;
-    }
-    // Region
-    const ab = g.applicant_base_regions   || [];
-    const gf = g.geographic_focus_regions || [];
-    if (region === '__unspecified__') {
-      if (ab.length || gf.length) return false;
-    } else if (region !== '') {
-      if (!ab.includes(region) && !gf.includes(region)) return false;
-    }
-    // Sector
-    const ts = g.thematic_sectors || [];
-    if (sector === '__unspecified__') {
-      if (ts.length) return false;
-    } else if (sector !== '') {
-      if (!ts.includes(sector)) return false;
-    }
-    // Org type
-    const ot = g.organisation_types || [];
-    if (orgType === '__unspecified__') {
-      if (ot.length) return false;
-    } else if (orgType !== '') {
-      if (!ot.includes(orgType)) return false;
-    }
-    return true;
-  });
-
-  // Step 3 — fuzzy search with Fuse.js (only when a query is typed)
-  if (query.length > 0) {
-    const fuse = new Fuse(hardFiltered, {
-      keys: [
-        { name: 'grant_title',      weight: 0.40 },
-        { name: 'funder_name',      weight: 0.30 },
-        { name: 'description',      weight: 0.15 },
-        { name: 'thematic_sectors', weight: 0.15 },
-      ],
-      threshold:        0.35,
-      ignoreLocation:   true,
-      minMatchCharLength: 2,
+/* ---------- world-map view ---------- */
+function countryCounts(){
+  const c={};
+  state.filtered.forEach(g=>{
+    const seen=new Set();
+    [...(g.applicant_base_countries||[]),...(g.geographic_focus_countries||[])].forEach(cc=>{
+      if(cc&&COUNTRY[cc]&&!seen.has(cc)){seen.add(cc);c[cc]=(c[cc]||0)+1;}
     });
-    // A typed query means the user is looking for something specific, so
-    // text relevance leads. We keep Fuse's ordering rather than re-ranking.
-    state.filtered = fuse.search(query).map(r => r.item);
-    clearForYou(state.filtered);
-  } else {
-    // No query — order by the selected sort mode (recommended/personalised
-    // by default) instead of the raw grants.json order.
-    state.filtered = orderGrants(hardFiltered);
+  });
+  return c;
+}
+function renderMap(){
+  if(typeof L==='undefined'){$('#gmaphint').textContent='Map library unavailable — check connection.';return;}
+  if(!state._map){
+    const m=L.map('gmap',{worldCopyJump:true,minZoom:1,maxZoom:6,zoomControl:true,attributionControl:true,
+      scrollWheelZoom:true,zoomSnap:.25}).setView([30,8],1.75);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+      {subdomains:'abcd',maxZoom:8,attribution:'© OpenStreetMap, © CARTO'}).addTo(m);
+    state._map=m;state._markers=L.layerGroup().addTo(m);
   }
-
-  // Step 4 — render
-  renderCards(state.filtered);
-  updateResultCount(state.filtered.length, state.allGrants.length);
-}
-
-/* ============================================================
-   Personalisation & ranking (Layer 2 — client-side)
-   ------------------------------------------------------------
-   The build-time ranking (ranking.py) writes a global prior `_rank_score`
-   onto every grant. Here we re-rank that prior against a lightweight visitor
-   profile and their click history — entirely in the browser, no backend.
-   ============================================================ */
-
-// Career-stage → eligibility keyword hints (matched against grant fields).
-const STAGE_OPTIONS = [
-  { value: 'student',     label: 'Student / PhD' },
-  { value: 'early',       label: 'Postdoc / Early-career' },
-  { value: 'established', label: 'Established researcher' },
-  { value: 'nonprofit',   label: 'Non-profit / NGO' },
-  { value: 'industry',    label: 'Industry / Startup' },
-];
-
-const STAGE_KEYWORDS = {
-  student:     ['phd', 'doctoral', 'studentship', 'scholarship', 'student',
-                'master', 'graduate', 'fellowship', 'early career', 'early-career'],
-  early:       ['postdoc', 'post-doctoral', 'postdoctoral', 'early career',
-                'early-career', 'fellowship', 'junior', 'new investigator', 'first grant'],
-  established: ['research grant', 'project grant', 'programme grant', 'program grant',
-                'investigator', 'senior', 'consolidator', 'advanced grant', 'professor'],
-};
-
-// Rough FX→USD for the "Funding (largest)" sort (mirrors ranking.py).
-const FX_USD = {
-  USD: 1, EUR: 1.08, GBP: 1.27, CHF: 1.10, CAD: 0.73, AUD: 0.66, NZD: 0.61,
-  JPY: 0.0067, CNY: 0.14, HKD: 0.128, SGD: 0.74, KRW: 0.00073, INR: 0.012,
-  SEK: 0.095, NOK: 0.094, DKK: 0.145, PLN: 0.25, CZK: 0.043, ZAR: 0.054,
-  BRL: 0.18, MXN: 0.058, ILS: 0.27, AED: 0.27, SAR: 0.27, TWD: 0.031,
-};
-
-// ── localStorage persistence ──────────────────────────────────────────────
-function loadProfile() {
-  try { const raw = localStorage.getItem(LS_PROFILE); if (raw) return JSON.parse(raw); }
-  catch (e) { /* ignore */ }
-  return null;
-}
-function saveProfile(p) {
-  try { localStorage.setItem(LS_PROFILE, JSON.stringify(p)); } catch (e) { /* ignore */ }
-}
-function loadAffinity() {
-  try { const raw = localStorage.getItem(LS_AFFINITY); if (raw) return JSON.parse(raw); }
-  catch (e) { /* ignore */ }
-  return { sectors: {}, funders: {} };
-}
-function saveAffinity(a) {
-  try { localStorage.setItem(LS_AFFINITY, JSON.stringify(a)); } catch (e) { /* ignore */ }
-}
-
-function recordAffinity(grant) {
-  const a = state.affinity || { sectors: {}, funders: {} };
-  a.sectors = a.sectors || {};
-  a.funders = a.funders || {};
-  (grant.thematic_sectors || []).slice(0, 4).forEach(s => {
-    if (s) a.sectors[s] = (a.sectors[s] || 0) + 1;
+  const map=state._map;
+  setTimeout(()=>map.invalidateSize(),60);
+  state._markers.clearLayers();
+  const counts=countryCounts();
+  const codes=Object.keys(counts);
+  const max=codes.reduce((a,k)=>Math.max(a,counts[k]),1);
+  let pinned=0;
+  codes.forEach(cc=>{
+    const meta=COUNTRY[cc];if(!meta)return;
+    const n=counts[cc];pinned+=n;
+    const r=Math.round(8+22*(Math.log(n+1)/Math.log(max+1)));  // 8–30px radius, log-scaled
+    const showNum=r>=15;
+    const html=`<div class="gmpin" style="width:${r*2}px;height:${r*2}px"><span class="gmdot"></span>${showNum?`<span class="gmnum">${n.toLocaleString()}</span>`:''}</div>`;
+    const icon=L.divIcon({className:'',html,iconSize:[r*2,r*2],iconAnchor:[r,r]});
+    const mk=L.marker([meta[1],meta[2]],{icon,riseOnHover:true});
+    mk.bindTooltip(`${meta[0]} — ${n.toLocaleString()}`,{direction:'top',offset:[0,-r],className:'gmtt'});
+    mk.bindPopup(`<div class="gmpop"><div class="gmpc">${esc(meta[0])}</div><div class="gmpn">${n.toLocaleString()} opportunit${n===1?'y':'ies'}</div><button class="gmpb" data-cc="${cc}">View these →</button></div>`);
+    mk.on('popupopen',e=>{const b=e.popup.getElement().querySelector('.gmpb');if(b)b.addEventListener('click',()=>setMapCountry(cc));});
+    state._markers.addLayer(mk);
   });
-  if (grant.funder_name) a.funders[grant.funder_name] = (a.funders[grant.funder_name] || 0) + 1;
-  state.affinity = a;
-  saveAffinity(a);
+  $('#gmaphint').textContent=codes.length?`${codes.length} countries · click a pin to filter`:'No country-tagged opportunities in this view';
 }
-
-// ── Profile helpers ─────────────────────────────────────────────────────────
-function hasAnyProfile(p) {
-  return !!(p && (p.stage || (p.fields && p.fields.length) ||
-                  (p.region && p.region !== 'any')));
+function setMapCountry(cc){
+  state.mapCountry=cc;state.view='grid';try{localStorage.setItem('gg_view','grid')}catch(e){}
+  syncViewButtons();state.shown=BATCH;applyAll();window.scrollTo({top:0,behavior:'smooth'});
 }
-function hasAffinity(a) {
-  return !!(a && a.sectors && Object.keys(a.sectors).length);
+function clearMapCountry(){state.mapCountry=null;state.shown=BATCH;applyAll();}
+function syncMapFilterBanner(){
+  const b=$('#mapfilter');if(!b)return;
+  if(state.mapCountry){
+    const name=(COUNTRY[state.mapCountry]||[state.mapCountry])[0];
+    b.innerHTML=`<span>Showing opportunities open to applicants in <b>${esc(name)}</b></span><button aria-label="Clear country filter">✕</button>`;
+    b.querySelector('button').addEventListener('click',clearMapCountry);
+    b.style.display='flex';
+  } else b.style.display='none';
 }
-
-// ── Personalisation panel (chips built from the data) ───────────────────────
-function buildPersonalizePanel(grants) {
-  renderChips('pz-stage', STAGE_OPTIONS, 'single');
-
-  // Fields — the most common thematic sectors in the dataset (top 14).
-  const secCount = {};
-  grants.forEach(g => (g.thematic_sectors || []).forEach(s => {
-    if (s) secCount[s] = (secCount[s] || 0) + 1;
-  }));
-  const topSectors = Object.entries(secCount)
-    .sort((a, b) => b[1] - a[1]).slice(0, 14)
-    .map(([s]) => ({ value: s, label: s }));
-  renderChips('pz-fields', topSectors, 'multi');
-
-  // Region — distinct applicant/focus regions, with an "Anywhere" default.
-  const regSet = new Set();
-  grants.forEach(g => {
-    (g.applicant_base_regions || []).forEach(r => r && regSet.add(r));
-    (g.geographic_focus_regions || []).forEach(r => r && regSet.add(r));
+function renderTable(grid,total){
+  const t=el('table','gtable');
+  t.innerHTML='<thead><tr><th>Status</th><th>Opportunity</th><th>Funder</th><th>Sector</th><th>Deadline</th><th class="r">Amount</th></tr></thead>';
+  const tb=el('tbody');
+  state.filtered.slice(0,state.shown).forEach(g=>{
+    const tr=el('tr');
+    tr.innerHTML=`<td><span class="status ${statusClass(g.current_status)}">${esc(g.current_status||'')}</span></td>`+
+      `<td class="ttl">${esc(g.grant_title)}</td><td class="fn">${esc(g.funder_name)}</td>`+
+      `<td class="sec">${esc((g.thematic_sectors||['—'])[0])}</td>`+
+      `<td>${esc(deadlineText(g).replace('Closes ',''))}</td><td class="r amt">${esc(amountShort(g))}</td>`;
+    tr.addEventListener('click',()=>openModal(g));tb.appendChild(tr);
   });
-  const regions = [{ value: 'any', label: 'Anywhere' },
-    ...[...regSet].sort().map(r => ({ value: r, label: r }))];
-  renderChips('pz-region', regions, 'single');
+  t.appendChild(tb);grid.appendChild(t);
+  if(state.shown<total){const sm=$('#showmore');sm.style.display='block';sm.textContent='Show more · '+(total-state.shown).toLocaleString()+' remaining';}
 }
-
-function renderChips(containerId, options, mode) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  el.innerHTML = '';
-  options.forEach(opt => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'pz-chip';
-    b.dataset.value = opt.value;
-    b.textContent = opt.label;
-    b.setAttribute('aria-pressed', 'false');
-    b.addEventListener('click', () => {
-      if (mode === 'single') {
-        const wasSel = b.classList.contains('pz-chip--selected');
-        el.querySelectorAll('.pz-chip').forEach(c => {
-          c.classList.remove('pz-chip--selected');
-          c.setAttribute('aria-pressed', 'false');
-        });
-        if (!wasSel) { b.classList.add('pz-chip--selected'); b.setAttribute('aria-pressed', 'true'); }
-      } else {
-        const sel = b.classList.toggle('pz-chip--selected');
-        b.setAttribute('aria-pressed', String(sel));
-      }
-    });
-    el.appendChild(b);
+function renderGrouped(grid){
+  const groups={};
+  state.filtered.forEach(g=>{const r=((g.geographic_focus_regions&&g.geographic_focus_regions[0])||(g.applicant_base_regions&&g.applicant_base_regions[0])||'Other');(groups[r]=groups[r]||[]).push(g);});
+  Object.entries(groups).sort((a,b)=>b[1].length-a[1].length).forEach(([region,arr])=>{
+    const sec=el('div','gsection');
+    sec.innerHTML=`<div class="ghead"><span class="gname">${esc(region)}</span><span class="gcount">${arr.length.toLocaleString()} opportunit${arr.length===1?'y':'ies'}</span></div>`;
+    const row=el('div','grow');
+    arr.slice(0,6).forEach(g=>row.appendChild(card(g)));
+    sec.appendChild(row);
+    if(arr.length>6){const b=el('button','gmore');b.textContent='View all '+arr.length.toLocaleString()+' in '+region+' →';
+      b.addEventListener('click',()=>{$('#f-region').value=region;state.view='grid';try{localStorage.setItem('gg_view','grid')}catch(e){}syncViewButtons();state.shown=BATCH;applyAll();window.scrollTo({top:0,behavior:'smooth'});});sec.appendChild(b);}
+    grid.appendChild(sec);
   });
 }
-
-function setChipSelection(containerId, values) {
-  const el = document.getElementById(containerId);
-  if (!el) return;
-  el.querySelectorAll('.pz-chip').forEach(c => {
-    const on = values.includes(c.dataset.value);
-    c.classList.toggle('pz-chip--selected', on);
-    c.setAttribute('aria-pressed', String(on));
-  });
+function statusClass(s){return (s||'').toLowerCase().replace(/\s+/g,'-');}
+function card(g){
+  const c=el('div','card');c.dataset.id=g.id;
+  const lead=g._forYou?'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5z"/></svg><span class="pt">For you</span>':'<span class="pt">'+esc((g.thematic_sectors||['Research'])[0])+'</span>';
+  c.innerHTML=`<div class="row"><span class="pill">${lead}</span><span class="status ${statusClass(g.current_status)}">${esc(g.current_status||'')}</span></div>
+    <h3>${esc(g.grant_title)}</h3><div class="funder">${esc(g.funder_name)}</div>
+    <div class="meta"><span>${esc(deadlineText(g))}</span><span class="amount">${esc(amountShort(g))}</span></div>`;
+  c.addEventListener('click',()=>openModal(g));
+  c.addEventListener('pointermove',e=>{if(state.view!=='grid')return;const r=c.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
+    c.style.transform=`translateY(-8px) perspective(1100px) rotateX(${(-py*5).toFixed(2)}deg) rotateY(${(px*5).toFixed(2)}deg)`;});
+  c.addEventListener('pointerleave',()=>{c.style.transform='';});
+  return c;
 }
-function selectedValues(containerId) {
-  const el = document.getElementById(containerId);
-  if (!el) return [];
-  return [...el.querySelectorAll('.pz-chip--selected')].map(c => c.dataset.value);
+function tagList(arr){return (arr&&arr.length?arr:['Not specified']).map(t=>`<span class="pill">${esc(t)}</span>`).join('');}
+function openModal(g){
+  recordAffinity(g);
+  const geo=[...(g.geographic_focus_regions||[]),...(g.geographic_focus_countries||[]),...(g.applicant_base_regions||[])];
+  const elig=[...(g.organisation_types||[]),...(g.individual_eligibility||[])];
+  const url=g.application_portal_url||g.source_url;
+  const lv=fmtDate(g.last_verified);
+  $('#sheet-body').innerHTML=`
+    <div class="top"><div><h2>${esc(g.grant_title)}</h2><p class="funder">${esc(g.funder_name)}</p></div>
+      <button class="close" id="mClose" aria-label="Close">✕</button></div>
+    <div class="tags"><span class="pill">${esc(g.current_status||'')}</span><span class="pill">${esc(deadlineText(g))}</span><span class="pill">${esc(amountFull(g))}</span></div>
+    <div class="seclabel">About</div><p class="desc">${esc(g.description||'No description provided by the funder.')}</p>
+    <div class="seclabel">Eligibility</div><div class="tags">${tagList([...new Set(elig)])}</div>
+    <div class="seclabel">Geographic focus</div><div class="tags">${tagList([...new Set(geo)])}</div>
+    <div class="seclabel">Thematic sectors</div><div class="tags">${tagList(g.thematic_sectors)}</div>
+    ${lv?`<div class="verified"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12l4 4L19 6"/></svg>Verified against funder · ${esc(lv)}</div>`:''}
+    ${url?`<a class="apply" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Apply / view grant <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M7 17 17 7M9 7h8v8"/></svg></a>`:''}`;
+  $('#mClose').addEventListener('click',closeModal);
+  $('#overlay').classList.add('show');
 }
-
-function syncPanelToProfile() {
-  const p = state.profile;
-  setChipSelection('pz-stage',  p && p.stage ? [p.stage] : []);
-  setChipSelection('pz-fields', p && p.fields ? p.fields : []);
-  setChipSelection('pz-region', p && p.region ? [p.region] : []);
-}
-
-function saveProfileFromPanel() {
-  const profile = {
-    stage:  selectedValues('pz-stage')[0] || '',
-    fields: selectedValues('pz-fields'),
-    region: selectedValues('pz-region')[0] || '',
-  };
-  state.profile = profile;
-  saveProfile(profile);
-  updatePersonalizeLabel();
-}
-
-function updatePersonalizeLabel() {
-  const label = document.getElementById('personalize-label');
-  const btn   = document.getElementById('personalize-toggle');
-  const p = state.profile;
-  if (hasAnyProfile(p)) {
-    const bits = [];
-    const stageLabel = (STAGE_OPTIONS.find(o => o.value === p.stage) || {}).label;
-    if (stageLabel) bits.push(stageLabel);
-    if (p.fields && p.fields.length) {
-      bits.push(p.fields.slice(0, 2).join(', ') + (p.fields.length > 2 ? '…' : ''));
-    }
-    if (p.region && p.region !== 'any') bits.push(p.region);
-    label.textContent = bits.length ? 'Personalised · ' + bits.join(' · ') : 'Personalise my feed';
-    btn.classList.add('btn-personalize--active');
-  } else {
-    label.textContent = 'Personalise my feed';
-    btn.classList.remove('btn-personalize--active');
-  }
-}
-
-// ── Scoring ───────────────────────────────────────────────────────────────
-function globalPrior(g) {
-  return typeof g._rank_score === 'number' ? g._rank_score : 0.6;
-}
-
-function stageMatch(grant, stage) {
-  const orgTypes = (grant.organisation_types || []).join(' ').toLowerCase();
-  if (stage === 'nonprofit') {
-    return /non.?profit|ngo|charit|civil society|foundation|community/.test(orgTypes) ? 1.0 : 0.45;
-  }
-  if (stage === 'industry') {
-    const hay = orgTypes + ' ' + (grant.grant_types || []).join(' ').toLowerCase();
-    return /sme|business|compan|startup|start-up|industr|for.?profit|enterprise|innovation|commerc/.test(hay) ? 1.0 : 0.40;
-  }
-  const hay = [
-    ...(grant.grant_types || []),
-    ...(grant.individual_eligibility || []),
-    ...(grant.organisation_types || []),
-    grant.grant_title || '',
-  ].join(' ').toLowerCase();
-  const kws = STAGE_KEYWORDS[stage] || [];
-  const hits = kws.filter(k => hay.includes(k)).length;
-  if (hits >= 2) return 1.0;
-  if (hits === 1) return 0.75;
-  return 0.45;
-}
-
-function affinityBoost(grant, affinity) {
-  if (!hasAffinity(affinity)) return 0.4;
-  const secW = affinity.sectors || {};
-  const funW = affinity.funders || {};
-  const sumSec = Object.values(secW).reduce((a, b) => a + b, 0) || 1;
-  let s = 0;
-  (grant.thematic_sectors || []).forEach(sec => { if (secW[sec]) s += secW[sec] / sumSec; });
-  s = Math.min(1, s);
-  const sumFun = Object.values(funW).reduce((a, b) => a + b, 0) || 1;
-  const f = grant.funder_name && funW[grant.funder_name]
-    ? Math.min(1, funW[grant.funder_name] / sumFun) : 0;
-  return Math.max(0.3, 0.7 * s + 0.3 * f);
-}
-
-// Returns 0..1 personal match, or null when there's nothing to personalise on.
-function personalMatch(grant, profile, affinity) {
-  const profilePresent  = hasAnyProfile(profile);
-  const affinityPresent = hasAffinity(affinity);
-  if (!profilePresent && !affinityPresent) return null;
-
-  let pm = null;
-  if (profilePresent) {
-    // Field overlap
-    let fieldScore = 0.5;
-    if (profile.fields && profile.fields.length) {
-      const sectors = grant.thematic_sectors || [];
-      const hit = sectors.filter(s => profile.fields.includes(s)).length;
-      fieldScore = hit > 0 ? Math.min(1, 0.65 + 0.18 * hit) : 0.20;
-    }
-    // Region
-    let regionScore = 0.5;
-    if (profile.region && profile.region !== 'any') {
-      const regions = [...(grant.applicant_base_regions || []),
-                       ...(grant.geographic_focus_regions || [])];
-      if (regions.includes(profile.region)) regionScore = 1.0;
-      else if (!regions.length || regions.includes('Global')) regionScore = 0.6;
-      else regionScore = 0.25;
-    }
-    // Career stage / eligibility
-    const stageScore = profile.stage ? stageMatch(grant, profile.stage) : 0.5;
-    pm = 0.42 * fieldScore + 0.30 * stageScore + 0.28 * regionScore;
-  }
-
-  const ab = affinityBoost(grant, affinity);
-  if (profilePresent && affinityPresent) return 0.8 * pm + 0.2 * ab;
-  if (profilePresent) return pm;
-  return ab; // affinity only
-}
-
-// ── Ordering ────────────────────────────────────────────────────────────────
-function deadlineKey(g) {
-  if (!g.application_deadline) return Number.MAX_SAFE_INTEGER;
-  const t = Date.parse(g.application_deadline + 'T00:00:00');
-  return isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
-}
-function fundingUsd(g) {
-  const amt = g.funding_amount_max || g.funding_amount_min;
-  if (!amt) return -1;
-  return Number(amt) * (FX_USD[(g.currency || 'USD').toUpperCase()] || 1);
-}
-function idHash(g) {
-  const s = String(g.id || '');
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-function clearForYou(arr) { arr.forEach(g => { g._forYou = false; }); }
-
-function orderGrants(list) {
-  const arr = list.slice();
-
-  if (state.sortMode === 'deadline') {
-    clearForYou(arr);
-    return arr.sort((a, b) => deadlineKey(a) - deadlineKey(b));
-  }
-  if (state.sortMode === 'funding') {
-    clearForYou(arr);
-    return arr.sort((a, b) => fundingUsd(b) - fundingUsd(a));
-  }
-  if (state.sortMode === 'toprated') {
-    clearForYou(arr);
-    return arr.sort((a, b) => globalPrior(b) - globalPrior(a) || idHash(a) - idHash(b));
-  }
-
-  // 'recommended' — blend the global prior with the personal match.
-  const personalised = hasAnyProfile(state.profile) || hasAffinity(state.affinity);
-  arr.forEach(g => {
-    const pm = personalMatch(g, state.profile, state.affinity);
-    if (pm == null) {
-      g._score  = globalPrior(g);
-      g._forYou = false;
-    } else {
-      g._score  = 0.45 * globalPrior(g) + 0.55 * pm;
-      g._forYou = personalised && pm >= 0.78;
-    }
-  });
-  arr.sort((a, b) => b._score - a._score || idHash(a) - idHash(b));
-  return arr;
-}
+function closeModal(){$('#overlay').classList.remove('show');}
+function recordAffinity(g){const a=state.affinity||{sectors:{},funders:{}};a.sectors=a.sectors||{};a.funders=a.funders||{};
+  (g.thematic_sectors||[]).slice(0,4).forEach(s=>{if(s)a.sectors[s]=(a.sectors[s]||0)+1;});
+  if(g.funder_name)a.funders[g.funder_name]=(a.funders[g.funder_name]||0)+1;
+  state.affinity=a;try{localStorage.setItem(LS_AFFINITY,JSON.stringify(a))}catch(e){}}

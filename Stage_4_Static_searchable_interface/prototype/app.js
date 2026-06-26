@@ -39,9 +39,16 @@ const FX={USD:1,EUR:1.08,GBP:1.27,CHF:1.1,CAD:.73,AUD:.66,NZD:.61,JPY:.0067,CNY:
 const $=s=>document.querySelector(s);
 const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
 
+// Load grants.json from whichever location this page is served from: at the
+// site root the data is at data/grants.json; under /prototype/ it's one level
+// up. Trying both keeps a single app.js working in either place.
+function loadGrants(){
+  return ['data/grants.json','../data/grants.json'].reduce(
+    (chain,url)=>chain.catch(()=>fetch(url).then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})),
+    Promise.reject(new Error('init')));
+}
 document.addEventListener('DOMContentLoaded',()=>{
-  fetch('../data/grants.json').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();})
-    .then(p=>init(p.grants||[])).catch(err=>{$('#count').textContent='Could not load data ('+err+')';});
+  loadGrants().then(p=>init(p.grants||[])).catch(err=>{$('#count').textContent='Could not load data ('+err+')';});
 
   ['f-status','f-region','f-sector','f-org'].forEach(id=>$('#'+id).addEventListener('change',()=>{state.shown=BATCH;applyAll();}));
   $('#sort').addEventListener('change',e=>{state.sort=e.target.value;state.shown=BATCH;applyAll();});
