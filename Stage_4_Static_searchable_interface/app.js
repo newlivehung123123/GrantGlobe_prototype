@@ -38,6 +38,9 @@ const FX={USD:1,EUR:1.08,GBP:1.27,CHF:1.1,CAD:.73,AUD:.66,NZD:.61,JPY:.0067,CNY:
 
 const $=s=>document.querySelector(s);
 const el=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
+// True only for devices with a precise hovering pointer (mouse/trackpad) — used
+// to gate the card 3-D tilt so touch scrolling never leaves cards stuck lifted.
+const HAS_FINE_POINTER=window.matchMedia&&window.matchMedia('(hover:hover) and (pointer:fine)').matches;
 
 // Load grants.json from whichever location this page is served from: at the
 // site root the data is at data/grants.json; under /prototype/ it's one level
@@ -57,6 +60,9 @@ document.addEventListener('DOMContentLoaded',()=>{
   $('#pSave').addEventListener('click',()=>{saveProfile();$('#panel').classList.remove('open');$('#pToggle').classList.remove('on');state.sort='recommended';$('#sort').value='recommended';state.shown=BATCH;applyAll();});
   $('#pClear').addEventListener('click',()=>{state.profile=null;try{localStorage.removeItem(LS_PROFILE)}catch(e){}syncChips();updatePersonaliseBtn();state.shown=BATCH;applyAll();});
   $('#showmore').addEventListener('click',()=>{state.shown+=BATCH;render();});
+  // mobile filter collapse: the 5 selects hide behind a "Filters" toggle so the
+  // sticky bar doesn't swallow the screen; no-op on desktop (toggle is hidden).
+  const ft=$('#filterToggle');if(ft)ft.addEventListener('click',()=>{const ff=$('#filterFields');const open=ff.classList.toggle('show');ft.classList.toggle('on',open);ft.setAttribute('aria-expanded',open);});
   // view toggle (grid / list / table / grouped)
   state.view=(localStorage.getItem('gg_view')||'grid');
   syncViewButtons();
@@ -79,16 +85,19 @@ function setGreeting(){
 }
 function initStickyToolbar(){
   const sent=$('#tbSentinel'),tb=$('#toolbar'),sh=$('#scrollhint'),grid=$('#grid');
-  if(!sent||!tb||!('IntersectionObserver'in window))return;
+  if(!sent||!tb)return;
   let revealed=false;
-  // Sentinel leaves the top → toolbar is pinned (user has scrolled into results):
-  // pin the glass bar, hide the hero hint, and play a one-time reveal on the grid.
-  new IntersectionObserver(([e])=>{
-    const stuck=!e.isIntersecting;
+  // When the sentinel (just above the toolbar) reaches the top of the viewport,
+  // the toolbar is pinned: show the glass bar, hide the hero hint, reveal the grid.
+  function update(){
+    const stuck=sent.getBoundingClientRect().top<=0;
     tb.classList.toggle('stuck',stuck);
     if(sh)sh.classList.toggle('hide',stuck);
     if(stuck&&!revealed&&grid){grid.classList.add('reveal');revealed=true;}
-  },{threshold:0}).observe(sent);
+  }
+  window.addEventListener('scroll',update,{passive:true});
+  window.addEventListener('resize',update);
+  update();
 }
 function scrollToResults(){
   const tb=$('#toolbar');if(!tb)return;
@@ -323,9 +332,13 @@ function card(g){
     <h3>${esc(g.grant_title)}</h3><div class="funder">${esc(g.funder_name)}</div>
     <div class="meta"><span>${esc(deadlineText(g))}</span><span class="amount">${esc(amountShort(g))}</span></div>`;
   c.addEventListener('click',()=>openModal(g));
-  c.addEventListener('pointermove',e=>{if(state.view!=='grid')return;const r=c.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
-    c.style.transform=`translateY(-8px) perspective(1100px) rotateX(${(-py*5).toFixed(2)}deg) rotateY(${(px*5).toFixed(2)}deg)`;});
-  c.addEventListener('pointerleave',()=>{c.style.transform='';});
+  // 3-D tilt is mouse-only. On touch, scrolling fires pointermove (but never
+  // pointerleave), so the cards would tilt and stay stuck lifted while scrolling.
+  if(HAS_FINE_POINTER){
+    c.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse'||state.view!=='grid')return;const r=c.getBoundingClientRect();const px=(e.clientX-r.left)/r.width-.5,py=(e.clientY-r.top)/r.height-.5;
+      c.style.transform=`translateY(-8px) perspective(1100px) rotateX(${(-py*5).toFixed(2)}deg) rotateY(${(px*5).toFixed(2)}deg)`;});
+    c.addEventListener('pointerleave',()=>{c.style.transform='';});
+  }
   return c;
 }
 function tagList(arr){return (arr&&arr.length?arr:['Not specified']).map(t=>`<span class="pill">${esc(t)}</span>`).join('');}
