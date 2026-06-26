@@ -157,16 +157,14 @@
   .gmap .leaflet-bar a:hover{background:rgba(40,44,56,.92)}
   .gmap .leaflet-control-attribution{background:rgba(6,7,12,.6);color:var(--w3);font-size:10px}
   .gmap .leaflet-control-attribution a{color:var(--w2)}
-  /* glowing country pins (divIcon) */
+  /* country pins (divIcon) — small crisp rings, magnitude by size, counts on hover */
   .gmpin{display:flex;align-items:center;justify-content:center;cursor:pointer}
   .gmpin .gmdot{position:absolute;inset:0;border-radius:50%;
-    background:radial-gradient(circle at 50% 38%,rgba(255,255,255,.95),rgba(200,214,236,.45) 55%,rgba(160,190,230,0) 74%);
-    border:1px solid rgba(255,255,255,.55);box-shadow:0 0 16px rgba(180,205,240,.55),0 0 5px rgba(255,255,255,.7)}
-  .gmpin .gmdot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid rgba(190,212,245,.4);
-    animation:gmpulse 2.6s var(--ease) infinite}
-  .gmpin .gmnum{position:relative;z-index:2;font-weight:600;font-size:11px;color:#0a0c14;letter-spacing:.01em}
-  .gmpin:hover .gmdot{box-shadow:0 0 26px rgba(200,220,255,.85),0 0 8px rgba(255,255,255,.9)}
-  @keyframes gmpulse{0%{transform:scale(.7);opacity:.7}70%{transform:scale(1.5);opacity:0}100%{opacity:0}}
+    background:rgba(208,224,255,.12);border:1.5px solid rgba(255,255,255,.82);
+    box-shadow:0 0 5px rgba(170,198,240,.4);
+    transition:transform .18s var(--ease),box-shadow .18s var(--ease),background .18s var(--ease)}
+  .gmpin:hover{z-index:650}
+  .gmpin:hover .gmdot{transform:scale(1.28);background:rgba(208,224,255,.34);box-shadow:0 0 14px rgba(200,222,255,.8)}
   /* glass popup */
   .gmap .leaflet-popup-content-wrapper{background:rgba(16,18,26,.82);color:#fff;border:1px solid rgba(255,255,255,.16);
     border-radius:18px;backdrop-filter:blur(28px) saturate(1.4);-webkit-backdrop-filter:blur(28px) saturate(1.4);
@@ -349,6 +347,6 @@
     document.querySelectorAll('#fontpick button').forEach(x=>x.classList.remove('on'));b.classList.add('on');}));
 })();
 </script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

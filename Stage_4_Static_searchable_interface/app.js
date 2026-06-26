@@ -224,9 +224,8 @@ function renderMap(){
   codes.forEach(cc=>{
     const meta=COUNTRY[cc];if(!meta)return;
     const n=counts[cc];pinned+=n;
-    const r=Math.round(8+22*(Math.log(n+1)/Math.log(max+1)));  // 8–30px radius, log-scaled
-    const showNum=r>=15;
-    const html=`<div class="gmpin" style="width:${r*2}px;height:${r*2}px"><span class="gmdot"></span>${showNum?`<span class="gmnum">${n.toLocaleString()}</span>`:''}</div>`;
+    const r=Math.round(4+11*(Math.log(n+1)/Math.log(max+1)));  // ~4–15px radius, log-scaled
+    const html=`<div class="gmpin" style="width:${r*2}px;height:${r*2}px"><span class="gmdot"></span></div>`;
     const icon=L.divIcon({className:'',html,iconSize:[r*2,r*2],iconAnchor:[r,r]});
     const mk=L.marker([meta[1],meta[2]],{icon,riseOnHover:true});
     mk.bindTooltip(`${meta[0]} — ${n.toLocaleString()}`,{direction:'top',offset:[0,-r],className:'gmtt'});
@@ -234,7 +233,7 @@ function renderMap(){
     mk.on('popupopen',e=>{const b=e.popup.getElement().querySelector('.gmpb');if(b)b.addEventListener('click',()=>setMapCountry(cc));});
     state._markers.addLayer(mk);
   });
-  $('#gmaphint').textContent=codes.length?`${codes.length} countries · click a pin to filter`:'No country-tagged opportunities in this view';
+  $('#gmaphint').textContent=codes.length?`${codes.length} countries · hover for counts · zoom to separate · click to filter`:'No country-tagged opportunities in this view';
 }
 function setMapCountry(cc){
   state.mapCountry=cc;state.view='grid';try{localStorage.setItem('gg_view','grid')}catch(e){}
