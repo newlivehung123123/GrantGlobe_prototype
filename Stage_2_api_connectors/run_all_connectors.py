@@ -183,6 +183,9 @@ CONNECTORS = [
     ("Howard Fellowship (Brown)", CONNECTORS_DIR / "brown_howard_foundation.py"),
     # ── National University of Singapore ─────────────────────────────────────
     ("Lee Kong Chian NUS-Stanford Fellowship (NUS)", CONNECTORS_DIR / "nus_lee_kong_chian.py"),
+    # ── Aggregator boards (funding/fellowship/contest only; cross-deduped) ────
+    ("EA Opportunities Board",     CONNECTORS_DIR / "ea_opportunities.py"),
+    ("80,000 Hours (funding)",     CONNECTORS_DIR / "eighty_k_hours.py"),
 ]
 
 

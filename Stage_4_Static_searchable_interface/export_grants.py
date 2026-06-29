@@ -744,15 +744,23 @@ def export(include_closed: bool, output_path: Path) -> tuple[int, str]:
     )
     grants = [_serialise_row(dict(row)) for row in rows]
 
-    # ── Deduplicate by normalised title + deadline ──────────────────────
+    # ── Deduplicate by normalised title + funder ────────────────────────
     # Keeps the first occurrence (rows are already sorted by status priority
-    # then deadline ASC, so the "best" record comes first).
+    # then deadline ASC, so the "best" record comes first). Keying on
+    # (title, funder) — rather than (title, deadline) — collapses the SAME
+    # opportunity listed on more than one source (e.g. an aggregator board like
+    # EA Opportunities / 80,000 Hours and the funder's own feed) even when the
+    # two listings carry different or missing deadlines. Falls back to
+    # (title, deadline) only when the funder is unknown, so funder-less records
+    # are never over-merged across distinct funders.
+    def _norm(s: str) -> str:
+        return _re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
     seen_keys: set[tuple] = set()
     deduped: list[dict] = []
     for g in grants:
-        title_norm = (g.get("grant_title") or "").strip().lower()
-        deadline = g.get("application_deadline")  # ISO string or None
-        key = (title_norm, deadline)
+        title_norm = _norm(g.get("grant_title"))
+        funder_norm = _norm(g.get("funder_name"))
+        key = (title_norm, funder_norm) if funder_norm else (title_norm, g.get("application_deadline"))
         if key not in seen_keys:
             seen_keys.add(key)
             deduped.append(g)
