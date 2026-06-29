@@ -89,6 +89,23 @@ jobs:
         working-directory: Stage_2_api_connectors
         run: python run_all_connectors.py --no-export
 
+      # ── 3a2. Close dead links — re-probe every live URL, retire 404s ───────
+      # The export-time liveness check FLAGS but keeps api_ 404s (to avoid
+      # false-dropping bot-blocked sites). This step closes that gap: it
+      # re-probes with a real browser UA + retries and sets current_status=
+      # 'Closed' on any link that returns a definitive, repeated 404/410 — which
+      # then excludes it from the site on every future build (Closed rows are
+      # dropped by the export query, even on fast no-liveness builds).
+      # Conservative: never closes on 403/429/timeout/5xx; skips SPA hosts.
+      - name: Close dead links (404 reconciliation)
+        if: github.event_name != 'push'
+        timeout-minutes: 20
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        working-directory: Stage_4_Static_searchable_interface
+        run: python close_dead_links.py --apply
+
       # ── 3b. Enrich + reconcile against source detail APIs ──────────────────
       # Fills missing amount/eligibility/description and refreshes + verifies
       # records against the funder's live detail API (stamping last_verified).

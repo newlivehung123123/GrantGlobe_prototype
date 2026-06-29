@@ -437,10 +437,14 @@ _LIVENESS_SKIP_HOSTS: tuple[str, ...] = (
     "ec.europa.eu", "ukri.org",
 )
 
+# Use a real browser User-Agent: a self-identifying bot UA (e.g.
+# "GrantGlobe-Verifier") gets 403'd by many funder sites, which the liveness
+# check then reads as "uncertain → keep" — masking genuinely-dead links. A
+# browser UA elicits the funder's real status (200 vs 404) far more often.
 _REQUEST_HEADERS: dict[str, str] = {
     "User-Agent": (
-        "Mozilla/5.0 (compatible; GrantGlobe-Verifier/1.0; "
-        "+https://github.com/newlivehung123123/GrantGlobe_prototype)"
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en",
