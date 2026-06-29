@@ -87,35 +87,90 @@ def _skip(url: str) -> bool:
 _CTX = ssl.create_default_context()
 
 
+def _status(url: str) -> object:
+    """Return the HTTP status code (int) or 'ERR' for a single GET."""
+    try:
+        req = urllib.request.Request(
+            url, method="GET",
+            headers={"User-Agent": BROWSER_UA, "Accept": "text/html,*/*"},
+        )
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=_CTX) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception:
+        return "ERR"
+
+
 def _is_dead(url: str) -> bool:
     """True only if EVERY attempt returns a definitive 404/410. Any 200/3xx/403/
     429/5xx/timeout on any attempt → not dead (we can't be sure)."""
     for i in range(ATTEMPTS):
-        try:
-            req = urllib.request.Request(
-                url, method="GET",
-                headers={"User-Agent": BROWSER_UA, "Accept": "text/html,*/*"},
-            )
-            with urllib.request.urlopen(req, timeout=TIMEOUT, context=_CTX) as r:
-                if r.status not in DEAD_CODES:
-                    return False
-        except urllib.error.HTTPError as e:
-            if e.code not in DEAD_CODES:
-                return False
-        except Exception:
-            return False        # timeout / connection error = uncertain → keep
+        if _status(url) not in DEAD_CODES:
+            return False
         if i < ATTEMPTS - 1:
             time.sleep(ATTEMPT_GAP)
     return True
 
 
+def _is_alive(url: str) -> bool:
+    """True only on a clean 200/3xx — used to REVIVE a previously dead-link-
+    retired opportunity whose page has come back. Conservative: a 403/404/timeout
+    leaves it retired."""
+    s = _status(url)
+    return isinstance(s, int) and 200 <= s < 400
+
+
+RETIRE_TAG = "dead_link"   # written to status_source so retirements are auditable + revivable
+
+
+def _revive(conn, max_workers: int, apply: bool) -> None:
+    """Re-probe opportunities previously retired for a dead link; reopen any whose
+    page is alive again (funder restored/moved it back). This protects coverage:
+    a recovered opportunity returns to the catalog automatically, and only ever
+    when its link genuinely resolves (200/3xx)."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, source_url, domain, grant_title FROM grants "
+            "WHERE current_status = 'Closed' AND status_source = %s AND source_url LIKE 'http%%'",
+            (RETIRE_TAG,),
+        )
+        retired = cur.fetchall()
+    if not retired:
+        return
+    def chk(rec):
+        return (rec, _is_alive(rec[1]))
+    revived = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        for rec, alive in pool.map(chk, retired):
+            if alive:
+                revived.append(rec)
+    print(f"\nRevival check: {len(retired)} previously retired → {len(revived)} link(s) alive again")
+    for i, u, d, t in revived[:8]:
+        print(f"    REVIVE [{d}] {t[:42]} → {u[:60]}")
+    if revived and apply:
+        ids = [str(i) for (i, _u, _d, _t) in revived]
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE grants SET current_status = 'Open', status_source = 'link_revived' "
+                "WHERE id = ANY(%s::uuid[])", (ids,),
+            )
+        conn.commit()
+        print(f"  Reopened {len(ids)} recovered opportunity(ies).")
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Close opportunities with confirmed-dead links")
-    ap.add_argument("--apply", action="store_true", help="write Closed status (default: dry-run)")
+    ap = argparse.ArgumentParser(description="Retire dead-link opportunities; revive recovered ones")
+    ap.add_argument("--apply", action="store_true", help="write changes (default: dry-run)")
     ap.add_argument("--max-workers", type=int, default=16)
     args = ap.parse_args()
 
     conn = psycopg2.connect(_get_db_url(), connect_timeout=30)
+
+    # Pass 1 — revive previously-retired opportunities whose link is back.
+    _revive(conn, args.max_workers, args.apply)
+
+    # Pass 2 — retire live opportunities whose link is now confirmed dead.
     with conn.cursor() as cur:
         cur.execute(
             "SELECT id, source_url, domain, grant_title FROM grants "
@@ -162,11 +217,14 @@ def main() -> None:
     ids = [str(i) for (i, _u, _d, _t) in dead]
     with conn.cursor() as cur:
         cur.execute(
-            "UPDATE grants SET current_status = 'Closed' WHERE id = ANY(%s::uuid[])", (ids,)
+            "UPDATE grants SET current_status = 'Closed', status_source = %s "
+            "WHERE id = ANY(%s::uuid[])", (RETIRE_TAG, ids),
         )
     conn.commit()
     conn.close()
-    print(f"\nClosed {len(ids)} dead-link record(s). Rollback: {rollback}")
+    print(f"\nClosed {len(ids)} dead-link record(s) (status_source='{RETIRE_TAG}'). "
+          f"Rollback: {rollback}")
+    print("  These remain queryable/recoverable and are auto-revived if the link returns.")
 
 
 if __name__ == "__main__":
