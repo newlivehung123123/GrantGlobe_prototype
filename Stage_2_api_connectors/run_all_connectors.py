@@ -189,15 +189,27 @@ CONNECTORS = [
 ]
 
 
+CONNECTOR_TIMEOUT = int(os.environ.get("GG_CONNECTOR_TIMEOUT", "300"))  # seconds per connector
+
+
 def run_script(name: str, path: Path, dry_run: bool) -> bool:
-    """Run a connector script as a subprocess. Returns True on success."""
+    """Run a connector script as a subprocess. Returns True on success.
+
+    Each connector is bounded by CONNECTOR_TIMEOUT so a single hung/rate-limited
+    source can never stall the whole crawl (important when running unattended in
+    CI). A timeout or non-zero exit is logged and skipped — the crawl continues.
+    """
     print(f"\n{'='*60}")
     print(f"  Running: {name}")
     print(f"{'='*60}")
     cmd = [sys.executable, str(path)]
     if dry_run:
         cmd.append("--dry-run")
-    result = subprocess.run(cmd, env=os.environ.copy())
+    try:
+        result = subprocess.run(cmd, env=os.environ.copy(), timeout=CONNECTOR_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        print(f"  WARNING: {name} timed out after {CONNECTOR_TIMEOUT}s — skipping")
+        return False
     if result.returncode != 0:
         print(f"  WARNING: {name} exited with code {result.returncode}")
         return False
@@ -316,6 +328,9 @@ def main() -> None:
                         help="Skip git push after export")
     parser.add_argument("--only", metavar="NAME",
                         help="Run only the named connector (partial match)")
+    parser.add_argument("--no-export", action="store_true",
+                        help="Crawl + reconcile only; skip export and push "
+                             "(the GitHub Actions workflow handles export+deploy)")
     args = parser.parse_args()
 
     connectors = CONNECTORS
@@ -336,9 +351,10 @@ def main() -> None:
 
     if not args.dry_run:
         close_stale_records()
-        export_ok = run_export(args.dry_run)
-        if export_ok and not args.skip_push:
-            push_to_github()
+        if not args.no_export:
+            export_ok = run_export(args.dry_run)
+            if export_ok and not args.skip_push:
+                push_to_github()
 
     print(f"\n{'='*60}")
     print("  Summary")
@@ -347,8 +363,10 @@ def main() -> None:
         status = "OK" if ok else "FAILED"
         print(f"  {status:6}  {name}")
 
-    if not args.dry_run:
+    if not args.dry_run and not args.no_export:
         print(f"  {'OK':6}  Export + Push")
+    elif args.no_export:
+        print(f"  {'OK':6}  Crawl + reconcile complete (export/deploy handled by workflow)")
 
     print()
 

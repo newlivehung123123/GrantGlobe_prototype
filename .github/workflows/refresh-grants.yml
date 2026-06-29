@@ -64,6 +64,31 @@ jobs:
       - name: Install dependencies
         run: pip install psycopg2-binary python-dotenv requests
 
+      # ── 3a. Crawl all connectors — DISCOVER new opportunities ──────────────
+      # This is the step that makes "live data extracted daily" true: it runs
+      # every Stage-2 connector, each of which fetches its source's current
+      # listings and upserts into Neon (new → insert, known → update, vanished →
+      # closed by the reconciliation inside run_all_connectors). --no-export so
+      # the existing export+deploy steps below publish the result.
+      #
+      # Resilience: each connector is bounded by GG_CONNECTOR_TIMEOUT and a
+      # failure/timeout is logged and skipped (never blocks the rest); the whole
+      # step is continue-on-error + time-boxed, so a bad crawl can never stop the
+      # daily validate/export/deploy from running on the last-good DB state.
+      #
+      # Schedule/dispatch only — a code/UI push must NOT trigger a 130-connector
+      # crawl. New opportunities therefore land once per day (or on manual
+      # "Run workflow").
+      - name: Crawl connectors (discover new opportunities)
+        if: github.event_name != 'push'
+        timeout-minutes: 45
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GG_CONNECTOR_TIMEOUT: "180"
+        working-directory: Stage_2_api_connectors
+        run: python run_all_connectors.py --no-export
+
       # ── 3b. Enrich + reconcile against source detail APIs ──────────────────
       # Fills missing amount/eligibility/description and refreshes + verifies
       # records against the funder's live detail API (stamping last_verified).
