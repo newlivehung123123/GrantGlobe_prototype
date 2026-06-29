@@ -44,9 +44,16 @@ import requests
 # ---------------------------------------------------------------------------
 
 NSF_FEEDS = [
-    "https://www.nsf.gov/rss/rss_www_funding_upcoming.xml",
+    # NSF moved the "upcoming" feed here (the old _upcoming.xml 301-redirects).
+    "https://www.nsf.gov/rss/rss_www_funding-upcoming/rss.xml",
     "https://www.nsf.gov/rss/rss_www_funding_pgm_annc_inf.xml",
 ]
+
+# NSF's feeds sometimes contain UNescaped ampersands in titles (e.g. "Data
+# Systems & Services"), which makes the XML not well-formed and the strict
+# parser reject the whole feed. Escape any bare '&' (one not already starting a
+# valid entity) before parsing so a single unescaped char can't drop a feed.
+_BARE_AMP = re.compile(r"&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)")
 
 _HEADERS = {
     "User-Agent": (
@@ -184,7 +191,8 @@ def _fetch_opportunities() -> list[dict]:
         try:
             resp = session.get(url, timeout=30)
             resp.raise_for_status()
-            root = ET.fromstring(resp.content)
+            text = resp.content.decode(resp.encoding or "utf-8", errors="replace")
+            root = ET.fromstring(_BARE_AMP.sub("&amp;", text))
         except Exception as e:
             print(f"  WARNING: failed to fetch/parse {url}: {e}")
             continue
