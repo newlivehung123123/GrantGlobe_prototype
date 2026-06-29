@@ -31,6 +31,7 @@ import collections
 import datetime
 import json
 import os
+import socket
 import ssl
 import sys
 import time
@@ -88,7 +89,8 @@ _CTX = ssl.create_default_context()
 
 
 def _status(url: str) -> object:
-    """Return the HTTP status code (int) or 'ERR' for a single GET."""
+    """Return the HTTP status code (int), 'DNS' if the host doesn't resolve, or
+    'ERR' for any other failure, for a single GET."""
     try:
         req = urllib.request.Request(
             url, method="GET",
@@ -98,15 +100,27 @@ def _status(url: str) -> object:
             return r.status
     except urllib.error.HTTPError as e:
         return e.code
+    except urllib.error.URLError as e:
+        reason = str(getattr(e, "reason", e))
+        if isinstance(getattr(e, "reason", None), socket.gaierror) or any(
+            s in reason for s in ("Name or service not known", "nodename nor servname",
+                                  "getaddrinfo failed", "Temporary failure in name resolution")):
+            return "DNS"
+        return "ERR"
+    except socket.gaierror:
+        return "DNS"
     except Exception:
         return "ERR"
 
 
 def _is_dead(url: str) -> bool:
-    """True only if EVERY attempt returns a definitive 404/410. Any 200/3xx/403/
-    429/5xx/timeout on any attempt → not dead (we can't be sure)."""
+    """True only if EVERY attempt is a definitive dead signal — a 404/410 OR a
+    DNS-resolution failure (the domain is gone). Any 200/3xx/403/429/5xx/timeout
+    on any attempt → not dead (we can't be sure). Requiring all attempts (with a
+    gap) to fail keeps a transient blip from false-retiring a live opportunity."""
     for i in range(ATTEMPTS):
-        if _status(url) not in DEAD_CODES:
+        s = _status(url)
+        if not (s in DEAD_CODES or s == "DNS"):
             return False
         if i < ATTEMPTS - 1:
             time.sleep(ATTEMPT_GAP)

@@ -45,6 +45,12 @@ DOMAIN = "api_ea_opportunities"
 # prizes/contests). Everything else on the board is a job/volunteer/event/etc.
 FUNDING_TYPES = {"Funding", "Fellowship", "Contest"}
 
+# Titles that signal a job/role post or aggregated list rather than a fundable
+# opportunity (the board sometimes mis-tags these as "Funding").
+_LOW_QUALITY = re.compile(
+    r"\b(list of (open )?roles|open roles|roles? at|job board|job list|"
+    r"contributor|we'?re hiring|now hiring|join (our|the) team)\b", re.I)
+
 _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -196,6 +202,14 @@ def _map_item(o: dict) -> dict | None:
             funder = str(org_alt[0]).strip()
     link = (o.get("applicationLink") or "").strip()
     if not title or not link or not funder:
+        return None
+
+    # Drop non-funding leakage the board occasionally mis-tags as "Funding":
+    # job-board domains and role/job-list posts (e.g. "List of Open Roles…",
+    # "Contributor"). These point at a generic job board, not an apply page.
+    from urllib.parse import urlsplit as _us
+    host = _us(link).netloc.lower()
+    if host.endswith(".jobs") or _LOW_QUALITY.search(title):
         return None
 
     deadline = o.get("applicationDeadline")
