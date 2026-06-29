@@ -363,11 +363,10 @@ def _has_bad_url_pattern(url: str | None) -> bool:
 
 # Connectors whose URLs are currently known-broken and must be excluded from the
 # live catalog regardless of the liveness probe (so they stay out even on GG_FAST
-# builds, which skip liveness). api_nserc_canada builds its detail URL from a
-# title-slug guess; the NSERC site moved to nserc-crsng.canada.ca and every
-# guessed slug now 404s (verified: 33/33 dead). Remove this entry once the NSERC
-# connector is rebuilt to read authoritative URLs.
-_EXCLUDE_DOMAINS: frozenset[str] = frozenset({"api_nserc_canada"})
+# builds, which skip liveness). Empty now that the NSERC connector was rebuilt to
+# read authoritative <gcds-link> URLs from the listing (no more slug guessing);
+# add a domain here if another connector is ever found emitting broken URLs.
+_EXCLUDE_DOMAINS: frozenset[str] = frozenset()
 
 
 def _filter_bad_url_patterns(grants: list[dict]) -> list[dict]:
@@ -422,7 +421,9 @@ _SKIP_VALIDATION_DOMAINS: frozenset[str] = frozenset(
 # the title rather than reading it from the source.
 _VALIDATE_API_DOMAINS: frozenset[str] = frozenset(
     {
-        "api_nserc_canada",   # canada_nserc.py — falls back to _title_to_slug(title)
+        # api_nserc_canada removed — the rebuilt connector now reads the real
+        # <gcds-link> URLs from the listing, so they're authoritative (and the
+        # site is too slow to content-verify per page anyway).
         "api_ri",             # ireland_ri.py   — builds /funding/{slug}/ from the title
     }
 )

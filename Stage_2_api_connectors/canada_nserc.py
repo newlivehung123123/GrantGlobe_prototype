@@ -121,15 +121,19 @@ def _infer_sectors(text: str) -> list[str]:
 
 def _fetch_page(session: requests.Session, url: str,
                 params: dict | None = None) -> str | None:
-    try:
-        resp = session.get(url, params=params, timeout=30)
-        if resp.status_code == 404:
-            return None
-        resp.raise_for_status()
-        return resp.text
-    except Exception as e:
-        print(f"  WARNING: fetch failed for {url}: {e}")
-        return None
+    # nserc-crsng.canada.ca is genuinely slow (~25-30s/page) and tarpits some
+    # requests, so use a long timeout and retry once before giving up.
+    for attempt in range(2):
+        try:
+            resp = session.get(url, params=params, timeout=75)
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            return resp.text
+        except Exception as e:
+            print(f"  WARNING: fetch attempt {attempt + 1} failed for {url}: {e}")
+            time.sleep(3)
+    return None
 
 
 def _fetch_nserc_json(session: requests.Session) -> list[dict]:
@@ -186,62 +190,50 @@ _HEADING_BLACKLIST = re.compile(
 )
 
 
+_ROW_PAT = re.compile(
+    r'<div class="search-result views-row">(.*?)(?=<div class="search-result views-row">|<nav|<gcds-pagination|$)',
+    re.DOTALL | re.IGNORECASE,
+)
+_LINK_PAT = re.compile(r'<gcds-link[^>]+href="(/en/funding-opportunity/[^"]+)"[^>]*>(.*?)</gcds-link>', re.DOTALL | re.IGNORECASE)
+_STATUS_PAT = re.compile(r'search-result-status status-(\w+)', re.IGNORECASE)
+_DESC_PAT = re.compile(r'views-field-field-description[^>]*>\s*<span[^>]*>(.*?)</span>', re.DOTALL | re.IGNORECASE)
+
+
 def _parse_opportunities_from_html(html_text: str) -> list[dict]:
-    """
-    Extract NSERC funding opportunities from the listing HTML.
+    """Extract NSERC opportunities from the listing HTML.
 
-    NSERC Drupal 10 listing: grant titles appear as plain <h3> headings (no anchor link).
-    Each title heading is immediately followed by a status element whose text is "Open".
-
-    Approach:
-      1. Iterate over all <h2>/<h3> headings.
-      2. Check the 600-char block after the heading for an ">Open<" badge.
-      3. Skip blacklisted headings (Contact Newsletter, etc.).
-      4. Construct the individual page URL from a Drupal slug derived from the title.
+    The Drupal 10 listing renders each opportunity as a
+    `<div class="search-result views-row">` containing a `<gcds-link>` whose
+    href is the REAL detail URL (/en/funding-opportunity/{slug}), a
+    `status-open`/`status-closed` badge, and a description. We read the real
+    link directly — no slug guessing — so the URL is always correct.
     """
     opps: list[dict] = []
-    seen_urls: set[str] = set()
-
-    # Match h2 and h3 headings (grant titles are h3 on this page)
-    heading_pat = re.compile(
-        r"<h[23][^>]*>(.*?)</h[23]>",
-        re.DOTALL | re.IGNORECASE,
-    )
-    # "Open" status badge — any element whose sole text content is "Open"
-    open_badge_pat = re.compile(r">\s*Open\s*<", re.IGNORECASE)
-
-    for m in heading_pat.finditer(html_text):
-        title_raw = _strip_tags(m.group(1)).strip()
-        if not title_raw or len(title_raw) < 8:
+    seen: set[str] = set()
+    for block in _ROW_PAT.findall(html_text):
+        lm = _LINK_PAT.search(block)
+        if not lm:
             continue
-        if _HEADING_BLACKLIST.search(title_raw):
+        href = lm.group(1)
+        title = _strip_tags(lm.group(2)).strip()
+        if not title or len(title) < 4:
             continue
-
-        # "Open" badge must appear within 600 chars after this heading
-        post = html_text[m.end(): m.end() + 600]
-        if not open_badge_pat.search(post):
+        url = f"{NSERC_BASE}{href}"
+        if url in seen:
             continue
-
-        slug = _title_to_slug(title_raw)
-        if not slug:
-            continue
-        url = f"{NSERC_BASE}/en/funding/funding-opportunity/{slug}"
-        if url in seen_urls:
-            continue
-        seen_urls.add(url)
-
-        # Description: first <p> in the post block
-        desc_m = re.search(r"<p[^>]*>(.*?)</p>", post, re.DOTALL | re.IGNORECASE)
-        description = _strip_tags(desc_m.group(1)).strip()[:400] if desc_m else None
-
+        seen.add(url)
+        sm = _STATUS_PAT.search(block)
+        status = (sm.group(1).lower() if sm else "open")
+        dm = _DESC_PAT.search(block)
+        description = _strip_tags(dm.group(1)).strip()[:600] if dm else None
         opps.append({
-            "title":        title_raw,
+            "title":        title,
             "url":          url,
+            "status":       status,
             "deadline_iso": None,
             "deadline_raw": None,
             "description":  description,
         })
-
     return opps
 
 
@@ -257,16 +249,14 @@ def _fetch_nserc_opportunities() -> list[dict]:
         "Accept-Language": "en-CA,en;q=0.9",
     })
 
-    # --- Try JSON API first ---
-    json_opps = _fetch_nserc_json(session)
-    if json_opps:
-        return json_opps
-    print("  NSERC: JSON API unavailable — falling back to HTML parser")
-
+    # The Drupal JSON:API is gone (returns HTTP 406, HTML only), so parse the
+    # server-rendered listing pages directly. Real opportunity URLs come from
+    # the page's <gcds-link> hrefs — never guessed.
     all_opps: list[dict] = []
+    seen_urls: set[str] = set()
 
     for page_num in range(0, MAX_PAGES):
-        params: dict = {"field_fo_status[open]": "open"}
+        params: dict = {}
         if page_num > 0:
             params["page"] = page_num
 
@@ -275,25 +265,22 @@ def _fetch_nserc_opportunities() -> list[dict]:
             print(f"  NSERC: page {page_num} returned no content — stopping.")
             break
 
-        if page_num == 0:
-            badge_count = html_text.lower().count(">open<")
-            print(f"  NSERC page 0: {len(html_text)} chars, '>Open<' badges: {badge_count}")
+        total_m = re.search(r"Displaying\s+\d+\s*-\s*\d+\s+of\s+(\d+)", html_text)
+        total = int(total_m.group(1)) if total_m else None
 
         page_opps = _parse_opportunities_from_html(html_text)
-        if not page_opps:
-            print(f"  NSERC: page {page_num} yielded 0 opportunities — stopping.")
-            break
-
-        existing_urls = {o["url"] for o in all_opps}
-        new_opps = [o for o in page_opps if o["url"] not in existing_urls]
+        new_opps = [o for o in page_opps if o["url"] not in seen_urls]
+        for o in new_opps:
+            seen_urls.add(o["url"])
         all_opps.extend(new_opps)
-        print(f"  NSERC page {page_num}: {len(new_opps)} new opportunities (total: {len(all_opps)})")
+        print(f"  NSERC page {page_num}: {len(new_opps)} opportunities "
+              f"(total so far: {len(all_opps)}{f' / {total}' if total else ''})")
 
-        # Stop if this page has fewer results than expected (last page)
-        if len(new_opps) < 10:
+        # Stop once we've collected everything the header advertises, or a page
+        # yields nothing new.
+        if not new_opps or (total and len(all_opps) >= total):
             break
-
-        time.sleep(0.5)
+        time.sleep(1.0)
 
     return all_opps
 
@@ -304,6 +291,12 @@ def _map_opportunity(opp: dict) -> dict | None:
     if not title or not url:
         return None
 
+    # Status comes straight from the listing's status badge, so closed calls are
+    # ingested as Closed (excluded from the live site) rather than shown as Open.
+    raw_status = (opp.get("status") or "open").lower()
+    status = {"open": "Open", "closed": "Closed",
+              "forthcoming": "Forthcoming", "upcoming": "Forthcoming"}.get(raw_status, "Open")
+
     return {
         "grant_title":              title,
         "funder_name":              "Natural Sciences and Engineering Research Council of Canada",
@@ -313,7 +306,7 @@ def _map_opportunity(opp: dict) -> dict | None:
         "application_deadline":     opp.get("deadline_iso"),
         "application_deadline_raw": opp.get("deadline_raw"),
         "grant_opening_date":       None,
-        "current_status":           "Open",
+        "current_status":           status,
         "source_language":          "en",
         "funding_amount_min":       None,
         "funding_amount_max":       None,
