@@ -22,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import collections
 import datetime
 import decimal
 import html
@@ -730,15 +731,49 @@ def _serialise_row(row: dict) -> dict:
     result["grant_title"]  = _fix_acronyms(result.get("grant_title"))
     result["funder_name"]  = _fix_acronyms(result.get("funder_name"))
 
-    # Prefer the opportunity page over a generic portal/landing. The frontend
-    # links to application_portal_url first; when that's a login wall or a
-    # bare-domain landing (e.g. grants.royalsociety.org/) but source_url is a
-    # real opportunity page, point the link at source_url so users reach the
-    # opportunity instead of a sign-in screen or the funder's grant-system home.
-    ap, su = result.get("application_portal_url"), result.get("source_url")
-    if ap and _is_generic_landing(ap) and su and not _is_generic_landing(su):
-        result["application_portal_url"] = su
     return result
+
+
+_APPLY_RE = _re.compile(r"/apply/?(\?|#|$)", _re.I)
+
+
+def _url_badness(url: str, freq: dict) -> int:
+    """Score how UNLIKELY a URL is to be this opportunity's specific page (higher
+    = worse). Combines: a login/bare-domain landing, a generic /apply page, and
+    being SHARED across many opportunities (the strongest 'generic' signal — a
+    URL reused by many grants is a portal, not a specific page)."""
+    if not url:
+        return 99
+    b = 0
+    if _is_generic_landing(url):
+        b += 3
+    if _APPLY_RE.search(url):
+        b += 2
+    if freq.get(url, 0) > 1:
+        b += 2
+    return b
+
+
+def _choose_display_urls(grants: list[dict]) -> list[dict]:
+    """Make each record's displayed link (application_portal_url, which the
+    frontend prefers) point at the most opportunity-SPECIFIC of its two URLs.
+    Generic/shared/login/apply landings lose to a unique description page —
+    fixing the whole 'links to a portal not the opportunity' class at once."""
+    freq: dict = collections.Counter()
+    for g in grants:
+        for f in ("application_portal_url", "source_url"):
+            u = g.get(f)
+            if u:
+                freq[u] += 1
+    swapped = 0
+    for g in grants:
+        ap, su = g.get("application_portal_url"), g.get("source_url")
+        if ap and su and ap != su and _url_badness(su, freq) < _url_badness(ap, freq):
+            g["application_portal_url"] = su
+            swapped += 1
+    if swapped:
+        print(f"  Display-URL fix: pointed {swapped} link(s) at the specific opportunity page")
+    return grants
 
 
 # ---------------------------------------------------------------------------
@@ -787,6 +822,9 @@ def export(include_closed: bool, output_path: Path) -> tuple[int, str]:
         timespec="seconds"
     )
     grants = [_serialise_row(dict(row)) for row in rows]
+
+    # ── Display-URL selection: opportunity page over generic/shared portal ──
+    grants = _choose_display_urls(grants)
 
     # ── Deduplicate by normalised title + funder ────────────────────────
     # Keeps the first occurrence (rows are already sorted by status priority
