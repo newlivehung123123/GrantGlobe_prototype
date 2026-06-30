@@ -184,61 +184,86 @@ def main() -> None:
     # Pass 1 — revive previously-retired opportunities whose link is back.
     _revive(conn, args.max_workers, args.apply)
 
-    # Pass 2 — retire live opportunities whose link is now confirmed dead.
+    # Pass 2 — probe the link the site ACTUALLY DISPLAYS (application_portal_url
+    # || source_url). If that link is dead but the other URL field is alive,
+    # REPAIR the record (point the display at the working link) — don't retire a
+    # real, open opportunity just because its portal URL rotted. Only when BOTH
+    # URLs are dead is the opportunity retired.
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id, source_url, domain, grant_title FROM grants "
-            "WHERE current_status <> 'Closed' AND source_url LIKE 'http%'"
+            "SELECT id, source_url, application_portal_url, domain, grant_title FROM grants "
+            "WHERE current_status <> 'Closed'"
         )
         rows = cur.fetchall()
 
-    candidates = [(i, u, d, t) for (i, u, d, t) in rows if not _skip(u)]
-    print(f"Live records: {len(rows)} | probing {len(candidates)} "
-          f"(skipped {len(rows) - len(candidates)} on SPA/challenge hosts)")
+    def _disp(su, ap):
+        return ap or su
+
+    candidates = [
+        (i, su, ap, d, t) for (i, su, ap, d, t) in rows
+        if _disp(su, ap) and str(_disp(su, ap)).startswith("http") and not _skip(_disp(su, ap))
+    ]
+    print(f"Live records: {len(rows)} | probing displayed link of {len(candidates)} "
+          f"(skipped SPA/challenge hosts)")
 
     def check(rec):
-        i, u, d, t = rec
-        return (rec, _is_dead(u))
+        i, su, ap, d, t = rec
+        disp = _disp(su, ap)
+        if not _is_dead(disp):
+            return (rec, "ok", None)
+        # Displayed link is dead — is the OTHER url field a working alternative?
+        other = su if disp == ap else ap
+        if other and other != disp and str(other).startswith("http") and _is_alive(other):
+            return (rec, "repair", other)
+        return (rec, "close", None)
 
-    dead: list = []
+    repairs: list = []   # (rec, working_url)
+    closes: list = []
     with ThreadPoolExecutor(max_workers=args.max_workers) as pool:
-        for rec, is_dead in pool.map(check, candidates):
-            if is_dead:
-                dead.append(rec)
+        for rec, action, alt in pool.map(check, candidates):
+            if action == "repair":
+                repairs.append((rec, alt))
+            elif action == "close":
+                closes.append(rec)
 
-    by_dom = collections.Counter(d for (_i, _u, d, _t) in dead)
-    print(f"\nConfirmed dead (repeated 404/410): {len(dead)}")
-    for d, n in by_dom.most_common():
-        print(f"  {n:3d}  {d}")
-    print("\n  sample:")
-    for i, u, d, t in dead[:12]:
-        print(f"    [{d}] {t[:42]} → {u[:64]}")
+    print(f"\nDisplayed link dead → REPAIR (working alt exists): {len(repairs)} | "
+          f"CLOSE (both urls dead): {len(closes)}")
+    for (i, su, ap, d, t), alt in repairs[:8]:
+        print(f"    REPAIR [{d}] {t[:38]} → {alt[:58]}")
+    for i, su, ap, d, t in closes[:8]:
+        print(f"    CLOSE  [{d}] {t[:38]} → {_disp(su, ap)[:58]}")
 
-    if not dead:
-        print("\nNothing to close.")
+    if not repairs and not closes:
+        print("\nNothing to repair or close.")
         conn.close()
         return
 
     if not args.apply:
-        print(f"\n[DRY RUN] Would close {len(dead)} record(s). Re-run with --apply.")
+        print(f"\n[DRY RUN] Would repair {len(repairs)} and close {len(closes)}. Re-run with --apply.")
         conn.close()
         return
 
-    # rollback file before writing
     stamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
     rollback = f"/tmp/gg_dead_links_rollback_{stamp}.json"
-    json.dump([{"id": i, "url": u, "domain": d} for (i, u, d, t) in dead], open(rollback, "w"))
-    ids = [str(i) for (i, _u, _d, _t) in dead]
+    json.dump({
+        "repairs": [{"id": str(r[0][0]), "to": r[1]} for r in repairs],
+        "closes": [{"id": str(c[0]), "url": _disp(c[1], c[2])} for c in closes],
+    }, open(rollback, "w"))
+
     with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE grants SET current_status = 'Closed', status_source = %s "
-            "WHERE id = ANY(%s::uuid[])", (RETIRE_TAG, ids),
-        )
+        for (i, su, ap, d, t), alt in repairs:
+            cur.execute(
+                "UPDATE grants SET application_portal_url = %s WHERE id = %s::uuid", (alt, str(i)),
+            )
+        if closes:
+            cur.execute(
+                "UPDATE grants SET current_status = 'Closed', status_source = %s "
+                "WHERE id = ANY(%s::uuid[])", (RETIRE_TAG, [str(c[0]) for c in closes]),
+            )
     conn.commit()
     conn.close()
-    print(f"\nClosed {len(ids)} dead-link record(s) (status_source='{RETIRE_TAG}'). "
-          f"Rollback: {rollback}")
-    print("  These remain queryable/recoverable and are auto-revived if the link returns.")
+    print(f"\nRepaired {len(repairs)} link(s) to a working URL; closed {len(closes)} "
+          f"(both urls dead). Rollback: {rollback}")
 
 
 if __name__ == "__main__":
