@@ -696,19 +696,22 @@ _PORTAL_VENDORS = (
 _LOGIN_RE = _re.compile(r"(login|signin|sign-in|sign_in|logon|/sso|/oauth)", _re.I)
 
 
-def _is_login_portal(url: str) -> bool:
-    """True if the URL is a generic login / application-portal LANDING (a wall
-    that shows a sign-in form, not the opportunity) — e.g. a `LoginServlet`,
-    `login.aspx`, or a bare `proposalcentral.com` / `rsf.fluxx.io` root. A
-    specific opportunity or apply page (with a real path) is NOT matched."""
+def _is_generic_landing(url: str) -> bool:
+    """True if the URL is a generic landing rather than the opportunity itself:
+    a login / application-portal wall (`LoginServlet`, `login.aspx`, bare
+    `proposalcentral.com`…), OR a **bare-domain landing** with no opportunity-
+    specific path (e.g. `https://grants.royalsociety.org/` — the funder's shared
+    grant-management entrance). A URL with a real path or query (a specific
+    opportunity / apply page) is NOT matched."""
     if not url:
         return False
     from urllib.parse import urlsplit
     p = urlsplit(url)
-    host, path = p.netloc.lower(), p.path
     if _LOGIN_RE.search(url):
         return True
-    if path in ("", "/") and any(host == v or host.endswith("." + v) for v in _PORTAL_VENDORS):
+    # bare-domain landing: just the host, no path or query that identifies a
+    # specific opportunity.
+    if p.path in ("", "/") and not p.query:
         return True
     return False
 
@@ -727,12 +730,13 @@ def _serialise_row(row: dict) -> dict:
     result["grant_title"]  = _fix_acronyms(result.get("grant_title"))
     result["funder_name"]  = _fix_acronyms(result.get("funder_name"))
 
-    # Prefer the opportunity page over a login/portal wall. The frontend links to
-    # application_portal_url first; when that's a generic login/portal landing
-    # but source_url is a real opportunity page, point the link at source_url so
-    # users reach the opportunity instead of a sign-in screen.
+    # Prefer the opportunity page over a generic portal/landing. The frontend
+    # links to application_portal_url first; when that's a login wall or a
+    # bare-domain landing (e.g. grants.royalsociety.org/) but source_url is a
+    # real opportunity page, point the link at source_url so users reach the
+    # opportunity instead of a sign-in screen or the funder's grant-system home.
     ap, su = result.get("application_portal_url"), result.get("source_url")
-    if ap and _is_login_portal(ap) and su and not _is_login_portal(su):
+    if ap and _is_generic_landing(ap) and su and not _is_generic_landing(su):
         result["application_portal_url"] = su
     return result
 
