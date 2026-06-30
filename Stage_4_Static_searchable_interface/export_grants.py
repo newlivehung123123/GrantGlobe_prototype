@@ -147,11 +147,13 @@ WHERE
     -- A URL is considered "specific" only if it is unique among approved records
     -- (i.e. not a generic listing page or portal homepage shared by many grants).
     --
-    -- Logic:
-    --   1. If application_portal_url is set AND unique → keep (specific grant page)
-    --   2. If application_portal_url is NULL AND source_url is unique → keep
-    --      (source page was a dedicated single-grant page)
-    --   3. Everything else → drop (generic portal homepage or listing page)
+    -- Logic: keep the record if it has ANY opportunity-specific (unique) URL —
+    -- a unique application_portal_url OR a unique source_url. A grant must not be
+    -- dropped just because its application_portal_url is a shared login/portal
+    -- landing (e.g. CIHR's ResearchNet LoginServlet) when its source_url is a
+    -- unique per-grant page (the Python serialiser then displays that real page
+    -- instead of the login wall). Records where BOTH urls are shared (generic
+    -- listing/portal pages reused across many grants) are still dropped.
     AND (
         (
             g.application_portal_url IS NOT NULL
@@ -166,7 +168,7 @@ WHERE
             ) = 1
         )
         OR (
-            g.application_portal_url IS NULL
+            g.source_url IS NOT NULL
             AND (
                 SELECT COUNT(*)
                 FROM grants g2
@@ -686,6 +688,31 @@ def _clean_text(value: str) -> str:
     return cur
 
 
+# Application-portal vendors whose bare landing page is just a login wall.
+_PORTAL_VENDORS = (
+    "proposalcentral.com", "fluxx.io", "smartsimple.com", "webportalapp.com",
+    "submittable.com", "wizehive.com", "grantrequest.com", "mysnf.ch",
+)
+_LOGIN_RE = _re.compile(r"(login|signin|sign-in|sign_in|logon|/sso|/oauth)", _re.I)
+
+
+def _is_login_portal(url: str) -> bool:
+    """True if the URL is a generic login / application-portal LANDING (a wall
+    that shows a sign-in form, not the opportunity) — e.g. a `LoginServlet`,
+    `login.aspx`, or a bare `proposalcentral.com` / `rsf.fluxx.io` root. A
+    specific opportunity or apply page (with a real path) is NOT matched."""
+    if not url:
+        return False
+    from urllib.parse import urlsplit
+    p = urlsplit(url)
+    host, path = p.netloc.lower(), p.path
+    if _LOGIN_RE.search(url):
+        return True
+    if path in ("", "/") and any(host == v or host.endswith("." + v) for v in _PORTAL_VENDORS):
+        return True
+    return False
+
+
 def _serialise_row(row: dict) -> dict:
     """Serialise a full database row dict to a JSON-safe dict."""
     result = {key: _serialise_value(key, val) for key, val in row.items()}
@@ -699,6 +726,14 @@ def _serialise_row(row: dict) -> dict:
     # Restore incorrectly title-cased acronyms in free-text title fields.
     result["grant_title"]  = _fix_acronyms(result.get("grant_title"))
     result["funder_name"]  = _fix_acronyms(result.get("funder_name"))
+
+    # Prefer the opportunity page over a login/portal wall. The frontend links to
+    # application_portal_url first; when that's a generic login/portal landing
+    # but source_url is a real opportunity page, point the link at source_url so
+    # users reach the opportunity instead of a sign-in screen.
+    ap, su = result.get("application_portal_url"), result.get("source_url")
+    if ap and _is_login_portal(ap) and su and not _is_login_portal(su):
+        result["application_portal_url"] = su
     return result
 
 
